@@ -1,0 +1,256 @@
+-- Piggy - Book 1 (By BMF)
+-- Enjoy! (:
+
+-- Variables
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local StarterGui = game:GetService("StarterGui")
+local UIS = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Create UI Elements
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local LocationLabel = Instance.new("TextLabel")
+local ErrorLog = Instance.new("TextLabel")
+local UIListLayout = Instance.new("UIListLayout")
+
+-- UI Properties
+ScreenGui.Parent = PlayerGui
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Name = "PiggyUI"
+
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Size = UDim2.new(0, 300, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Visible = true
+
+Title.Parent = MainFrame
+Title.Text = "Piggy - Book 1 (By BMF)"
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 18
+
+ErrorLog.Parent = MainFrame
+ErrorLog.Text = "Error Log: None"
+ErrorLog.Size = UDim2.new(1, 0, 0, 30)
+ErrorLog.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+ErrorLog.TextColor3 = Color3.fromRGB(255, 85, 85)
+ErrorLog.Font = Enum.Font.SourceSans
+ErrorLog.TextSize = 14
+ErrorLog.TextWrapped = true
+ErrorLog.TextYAlignment = Enum.TextYAlignment.Top
+
+UIListLayout.Parent = MainFrame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Toggle UI with Delete key
+UIS.InputBegan:Connect(function(input, processed)
+    if not processed and input.KeyCode == Enum.KeyCode.Delete then
+        MainFrame.Visible = not MainFrame.Visible
+    end
+end)
+
+-- Function to Create Buttons
+local function createButton(name, callback)
+    local Button = Instance.new("TextButton")
+    Button.Parent = MainFrame
+    Button.Text = name
+    Button.Size = UDim2.new(1, 0, 0, 30)
+    Button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.Font = Enum.Font.SourceSans
+    Button.TextSize = 16
+    Button.MouseButton1Click:Connect(function()
+        pcall(callback)
+    end)
+    return Button
+end
+
+createButton("Infinite Yield", function()
+    local success, result = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end)
+    if success then
+        print("Infinite Yield executed!")
+    else
+        print("Error executing Infinite Yield")
+    end
+end)
+
+createButton("Dex Explorer", function()
+    local success, result = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()
+    end)
+    if success then
+        print("Dex Explorer executed!")
+    else
+        print("Error executing Dex Explorer")
+    end
+end)
+
+-- ✅ Notification when script loads
+StarterGui:SetCore("SendNotification", {
+    Title = "Piggy Script Loaded!";
+    Text = "All features are ready.";
+    Duration = 10;
+})
+
+-- ✅ ESP helper
+local function highlightTarget(target, color)
+    local highlight = Instance.new("Highlight")
+    highlight.Adornee = target
+    highlight.FillColor = color
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = target
+end
+
+-- ✅ Add Buttons Below
+createButton("Piggy ESP", function()
+    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+
+    if piggyFolder and piggyFolder:IsA("Folder") then
+        for _, piggyModel in ipairs(piggyFolder:GetChildren()) do
+            if piggyModel:IsA("Model") then
+                local existingHighlight = piggyModel:FindFirstChildOfClass("Highlight")
+                if not existingHighlight then
+                    highlightTarget(piggyModel, Color3.fromRGB(255, 0, 0)) -- Red ESP
+                end
+            end
+        end
+    else
+        ErrorLog.Text = "Error Log: PiggyNPC folder not found in Workspace"
+    end
+end)
+
+createButton("Item ESP", function()
+    local itemFolder = workspace:FindFirstChild("-2079432348327878100")
+
+    if itemFolder and itemFolder:IsA("Folder") then
+        for _, item in ipairs(itemFolder:GetChildren()) do
+            if item:IsA("Model") then
+                -- Apply Highlight if not already present
+                if not item:FindFirstChildOfClass("Highlight") then
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "ItemESP"
+                    highlight.Adornee = item
+                    highlight.FillTransparency = 1 -- Outline only
+                    highlight.OutlineTransparency = 0
+                    highlight.OutlineColor = Color3.fromRGB(0, 255, 0) -- Green
+                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    highlight.Parent = item
+                end
+
+                -- Apply name label with BillboardGui if not present
+                if not item:FindFirstChild("ItemLabel") then
+                    local billboard = Instance.new("BillboardGui")
+                    billboard.Name = "ItemLabel"
+                    billboard.Size = UDim2.new(0, 200, 0, 50)
+                    billboard.AlwaysOnTop = true
+                    billboard.StudsOffset = Vector3.new(0, 2, 0)
+                    billboard.Adornee = item
+                    billboard.Parent = item
+
+                    local label = Instance.new("TextLabel")
+                    label.Size = UDim2.new(1, 0, 1, 0)
+                    label.BackgroundTransparency = 1
+                    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    label.TextStrokeTransparency = 0
+                    label.Text = item.Name
+                    label.TextScaled = true
+                    label.Font = Enum.Font.GothamBold
+                    label.Parent = billboard
+                end
+            end
+        end
+    else
+        ErrorLog.Text = "Error Log: Item folder '-2079432348327878100' not found in Workspace"
+    end
+end)
+
+createButton("Spawn All Items", function()
+    local itemFolder = workspace:FindFirstChild("-2079432348327878100")
+    local player = game.Players.LocalPlayer
+    local char = player and player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+    if itemFolder and hrp then
+        for _, item in pairs(itemFolder:GetChildren()) do
+            if item:IsA("Model") or item:IsA("MeshPart") then
+                local clonedItem = item:Clone()
+                clonedItem.Parent = workspace
+
+                if clonedItem:IsA("Model") and clonedItem:FindFirstChildWhichIsA("BasePart") then
+                    -- Position the entire model at the player's position
+                    local primary = clonedItem.PrimaryPart or clonedItem:FindFirstChild("PrimaryPart") or clonedItem:FindFirstChildWhichIsA("BasePart")
+                    if primary then
+                        local offset = primary.Position - clonedItem:GetModelCFrame().Position
+                        clonedItem:SetPrimaryPartCFrame(hrp.CFrame + offset)
+                    end
+                elseif clonedItem:IsA("MeshPart") then
+                    -- Position mesh part directly at player
+                    clonedItem.CFrame = hrp.CFrame
+                end
+            end
+        end
+        print("Spawned all items at your location.")
+    else
+        warn("Error: Folder not found or player not loaded.")
+    end
+end)
+
+createButton("God Mode", function()
+    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+
+    if piggyFolder and piggyFolder:IsA("Folder") then
+        for _, bot in ipairs(piggyFolder:GetChildren()) do
+            if bot:IsA("Model") then
+                -- Set Enemy to false
+                local enemyFlag = bot:FindFirstChild("Enemy")
+                if enemyFlag and enemyFlag:IsA("BoolValue") then
+                    enemyFlag.Value = false
+                end
+
+                -- Destroy TouchInterest in Head
+                local head = bot:FindFirstChild("Head")
+                if head then
+                    local ti = head:FindFirstChildWhichIsA("TouchTransmitter") or head:FindFirstChild("TouchInterest")
+                    if ti then
+                        ti:Destroy()
+                    end
+                end
+
+                -- Destroy TouchInterest in HumanoidRootPart
+                local hrp = bot:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local ti = hrp:FindFirstChildWhichIsA("TouchTransmitter") or hrp:FindFirstChild("TouchInterest")
+                    if ti then
+                        ti:Destroy()
+                    end
+                end
+            end
+        end
+
+        print("God Mode activated: Bots neutered.")
+    else
+        ErrorLog.Text = "Error Log: PiggyNPC folder not found in Workspace."
+    end
+end)
+
+
+createButton("Full Bright", function()
+    Lighting.Ambient = Color3.new(1, 1, 1)
+    Lighting.Brightness = 3
+    Lighting.FogEnd = 100000
+    Lighting.ClockTime = 14
+end)
