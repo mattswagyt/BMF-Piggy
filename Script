@@ -134,24 +134,32 @@ createButton("Piggy ESP", function()
 end)
 
 createButton("Item ESP", function()
-    local itemFolder = workspace:FindFirstChild("-2079432348327878100")
+    local itemFolder = nil
 
-    if itemFolder and itemFolder:IsA("Folder") then
+    -- Dynamically find the folder with a dash in its name
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Folder") and string.find(obj.Name, "-") then
+            itemFolder = obj
+            break
+        end
+    end
+
+    if itemFolder then
         for _, item in ipairs(itemFolder:GetChildren()) do
             if item:IsA("Model") then
-                -- Apply Highlight if not already present
+                -- Highlight
                 if not item:FindFirstChildOfClass("Highlight") then
                     local highlight = Instance.new("Highlight")
                     highlight.Name = "ItemESP"
                     highlight.Adornee = item
-                    highlight.FillTransparency = 1 -- Outline only
+                    highlight.FillTransparency = 1
                     highlight.OutlineTransparency = 0
-                    highlight.OutlineColor = Color3.fromRGB(0, 255, 0) -- Green
+                    highlight.OutlineColor = Color3.fromRGB(0, 255, 0)
                     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                     highlight.Parent = item
                 end
 
-                -- Apply name label with BillboardGui if not present
+                -- Billboard label
                 if not item:FindFirstChild("ItemLabel") then
                     local billboard = Instance.new("BillboardGui")
                     billboard.Name = "ItemLabel"
@@ -174,12 +182,21 @@ createButton("Item ESP", function()
             end
         end
     else
-        ErrorLog.Text = "Error Log: Item folder '-2079432348327878100' not found in Workspace"
+        ErrorLog.Text = "Error Log: Couldn't find item folder (no '-' in name)"
     end
 end)
 
 createButton("Spawn All Items", function()
-    local itemFolder = workspace:FindFirstChild("-2079432348327878100")
+    local itemFolder = nil
+
+    -- Look for the folder with a dash in its name
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Folder") and string.find(obj.Name, "-") then
+            itemFolder = obj
+            break
+        end
+    end
+
     local player = game.Players.LocalPlayer
     local char = player and player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -191,21 +208,19 @@ createButton("Spawn All Items", function()
                 clonedItem.Parent = workspace
 
                 if clonedItem:IsA("Model") and clonedItem:FindFirstChildWhichIsA("BasePart") then
-                    -- Position the entire model at the player's position
                     local primary = clonedItem.PrimaryPart or clonedItem:FindFirstChild("PrimaryPart") or clonedItem:FindFirstChildWhichIsA("BasePart")
                     if primary then
                         local offset = primary.Position - clonedItem:GetModelCFrame().Position
                         clonedItem:SetPrimaryPartCFrame(hrp.CFrame + offset)
                     end
                 elseif clonedItem:IsA("MeshPart") then
-                    -- Position mesh part directly at player
                     clonedItem.CFrame = hrp.CFrame
                 end
             end
         end
         print("Spawned all items at your location.")
     else
-        warn("Error: Folder not found or player not loaded.")
+        warn("Error: Item folder not found or player not loaded.")
     end
 end)
 
