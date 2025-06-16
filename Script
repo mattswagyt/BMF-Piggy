@@ -134,94 +134,88 @@ createButton("Piggy ESP", function()
 end)
 
 createButton("Item ESP", function()
-    local itemFolder = nil
-
-    -- Dynamically find the folder with a dash in its name
-    for _, obj in pairs(workspace:GetChildren()) do
-        if obj:IsA("Folder") and string.find(obj.Name, "-") then
-            itemFolder = obj
-            break
-        end
+    local function isTargetFolder(name)
+        return string.find(name, "%-") or string.find(name, "%d")
     end
 
-    if itemFolder then
-        for _, item in ipairs(itemFolder:GetChildren()) do
-            if item:IsA("Model") then
-                -- Highlight
-                if not item:FindFirstChildOfClass("Highlight") then
-                    local highlight = Instance.new("Highlight")
-                    highlight.Name = "ItemESP"
-                    highlight.Adornee = item
-                    highlight.FillTransparency = 1
-                    highlight.OutlineTransparency = 0
-                    highlight.OutlineColor = Color3.fromRGB(0, 255, 0)
-                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    highlight.Parent = item
-                end
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Folder") and isTargetFolder(obj.Name) then
+            for _, item in ipairs(obj:GetChildren()) do
+                if item:IsA("Model") then
+                    -- Highlight
+                    if not item:FindFirstChildOfClass("Highlight") then
+                        local highlight = Instance.new("Highlight")
+                        highlight.Name = "ItemESP"
+                        highlight.Adornee = item
+                        highlight.FillTransparency = 1
+                        highlight.OutlineTransparency = 0
+                        highlight.OutlineColor = Color3.fromRGB(0, 255, 0)
+                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        highlight.Parent = item
+                    end
 
-                -- Billboard label
-                if not item:FindFirstChild("ItemLabel") then
-                    local billboard = Instance.new("BillboardGui")
-                    billboard.Name = "ItemLabel"
-                    billboard.Size = UDim2.new(0, 200, 0, 50)
-                    billboard.AlwaysOnTop = true
-                    billboard.StudsOffset = Vector3.new(0, 2, 0)
-                    billboard.Adornee = item
-                    billboard.Parent = item
+                    -- Billboard label
+                    if not item:FindFirstChild("ItemLabel") then
+                        local billboard = Instance.new("BillboardGui")
+                        billboard.Name = "ItemLabel"
+                        billboard.Size = UDim2.new(0, 200, 0, 50)
+                        billboard.AlwaysOnTop = true
+                        billboard.StudsOffset = Vector3.new(0, 2, 0)
+                        billboard.Adornee = item
+                        billboard.Parent = item
 
-                    local label = Instance.new("TextLabel")
-                    label.Size = UDim2.new(1, 0, 1, 0)
-                    label.BackgroundTransparency = 1
-                    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-                    label.TextStrokeTransparency = 0
-                    label.Text = item.Name
-                    label.TextScaled = true
-                    label.Font = Enum.Font.GothamBold
-                    label.Parent = billboard
+                        local label = Instance.new("TextLabel")
+                        label.Size = UDim2.new(1, 0, 1, 0)
+                        label.BackgroundTransparency = 1
+                        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        label.TextStrokeTransparency = 0
+                        label.Text = item.Name
+                        label.TextScaled = true
+                        label.Font = Enum.Font.GothamBold
+                        label.Parent = billboard
+                    end
                 end
             end
         end
-    else
-        ErrorLog.Text = "Error Log: Couldn't find item folder (no '-' in name)"
     end
 end)
 
 createButton("Spawn All Items", function()
-    local itemFolder = nil
-
-    -- Look for the folder with a dash in its name
-    for _, obj in pairs(workspace:GetChildren()) do
-        if obj:IsA("Folder") and string.find(obj.Name, "-") then
-            itemFolder = obj
-            break
-        end
+    local function isTargetFolder(name)
+        return string.find(name, "%-") or string.find(name, "%d")
     end
 
     local player = game.Players.LocalPlayer
     local char = player and player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-    if itemFolder and hrp then
-        for _, item in pairs(itemFolder:GetChildren()) do
-            if item:IsA("Model") or item:IsA("MeshPart") then
-                local clonedItem = item:Clone()
-                clonedItem.Parent = workspace
+    if not hrp then
+        warn("Error: Player not loaded.")
+        return
+    end
 
-                if clonedItem:IsA("Model") and clonedItem:FindFirstChildWhichIsA("BasePart") then
-                    local primary = clonedItem.PrimaryPart or clonedItem:FindFirstChild("PrimaryPart") or clonedItem:FindFirstChildWhichIsA("BasePart")
-                    if primary then
-                        local offset = primary.Position - clonedItem:GetModelCFrame().Position
-                        clonedItem:SetPrimaryPartCFrame(hrp.CFrame + offset)
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Folder") and isTargetFolder(obj.Name) then
+            for _, item in pairs(obj:GetChildren()) do
+                if item:IsA("Model") or item:IsA("MeshPart") then
+                    local clonedItem = item:Clone()
+                    clonedItem.Parent = workspace
+
+                    if clonedItem:IsA("Model") and clonedItem:FindFirstChildWhichIsA("BasePart") then
+                        local primary = clonedItem.PrimaryPart or clonedItem:FindFirstChild("PrimaryPart") or clonedItem:FindFirstChildWhichIsA("BasePart")
+                        if primary then
+                            local offset = primary.Position - clonedItem:GetModelCFrame().Position
+                            clonedItem:SetPrimaryPartCFrame(hrp.CFrame + offset)
+                        end
+                    elseif clonedItem:IsA("MeshPart") then
+                        clonedItem.CFrame = hrp.CFrame
                     end
-                elseif clonedItem:IsA("MeshPart") then
-                    clonedItem.CFrame = hrp.CFrame
                 end
             end
         end
-        print("Spawned all items at your location.")
-    else
-        warn("Error: Item folder not found or player not loaded.")
     end
+
+    print("Spawned all items at your location.")
 end)
 
 createButton("God Mode", function()
