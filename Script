@@ -1,11 +1,13 @@
 -- Piggy - Book 1 (By BMF)
--- Enjoy! (:
+-- Fully Updated Version with ESP, Tracers, NameTags, Auto Detection
 
 -- Variables
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -13,8 +15,8 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local Title = Instance.new("TextLabel")
-local LocationLabel = Instance.new("TextLabel")
 local ErrorLog = Instance.new("TextLabel")
+local TraitorLabel = Instance.new("TextLabel")
 local UIListLayout = Instance.new("UIListLayout")
 
 -- UI Properties
@@ -23,191 +25,339 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Name = "PiggyUI"
 
 MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.Size = UDim2.new(0, 300, 0, 400)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+MainFrame.Size = UDim2.new(0,300,0,400)
+MainFrame.Position = UDim2.new(0.5,-150,0.5,-200)
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Visible = true
 
 Title.Parent = MainFrame
 Title.Text = "Piggy - Book 1 (By BMF)"
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Size = UDim2.new(1,0,0,30)
+Title.BackgroundColor3 = Color3.fromRGB(45,45,45)
+Title.TextColor3 = Color3.fromRGB(255,255,255)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 18
 
 ErrorLog.Parent = MainFrame
 ErrorLog.Text = "Error Log: None"
-ErrorLog.Size = UDim2.new(1, 0, 0, 30)
-ErrorLog.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-ErrorLog.TextColor3 = Color3.fromRGB(255, 85, 85)
+ErrorLog.Size = UDim2.new(1,0,0,30)
+ErrorLog.BackgroundColor3 = Color3.fromRGB(45,45,45)
+ErrorLog.TextColor3 = Color3.fromRGB(255,85,85)
 ErrorLog.Font = Enum.Font.SourceSans
 ErrorLog.TextSize = 14
-ErrorLog.TextWrapped = true
-ErrorLog.TextYAlignment = Enum.TextYAlignment.Top
+
+-- NEW TRAITOR LABEL
+TraitorLabel.Parent = MainFrame
+TraitorLabel.Text = "Traitor: Searching..."
+TraitorLabel.Size = UDim2.new(1,0,0,25)
+TraitorLabel.BackgroundColor3 = Color3.fromRGB(45,45,45)
+TraitorLabel.TextColor3 = Color3.fromRGB(255,255,0)
+TraitorLabel.Font = Enum.Font.SourceSansBold
+TraitorLabel.TextSize = 14
 
 UIListLayout.Parent = MainFrame
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Toggle UI with Delete key
+-- Toggle UI
 UIS.InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Enum.KeyCode.Delete then
         MainFrame.Visible = not MainFrame.Visible
     end
 end)
 
--- Function to Create Buttons
-local function createButton(name, callback)
-    local Button = Instance.new("TextButton")
-    Button.Parent = MainFrame
-    Button.Text = name
-    Button.Size = UDim2.new(1, 0, 0, 30)
-    Button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.Font = Enum.Font.SourceSans
-    Button.TextSize = 16
-    Button.MouseButton1Click:Connect(function()
-        pcall(callback)
-    end)
-    return Button
-end
-
-createButton("Infinite Yield", function()
-    local success, result = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
-    end)
-    if success then
-        print("Infinite Yield executed!")
-    else
-        print("Error executing Infinite Yield")
-    end
-end)
-
-createButton("Dex Explorer", function()
-    local success, result = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()
-    end)
-    if success then
-        print("Dex Explorer executed!")
-    else
-        print("Error executing Dex Explorer")
-    end
-end)
-
-createButton("Piggy OP Script", function()
-    local success, result = pcall(function()
-        loadstring(game:HttpGet(('https://pastefy.app/iWChQoQo/raw'),true))()
-    end)
-    if success then
-        print("Piggy OP Script executed!")
-    else
-        print("Error executing Piggy OP Script")
-    end
-end)
-
-createButton("Veno Hub - Autofarm", function()
-    local success, result = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Uhhhhhhid1/Lmaoiud/refs/heads/main/Piggy2.txt"))()
-    end)
-    if success then
-        print("Veno Hub executed!")
-    else
-        print("Error executing Veno Hub")
-    end
-end)
-
-createButton("Starhack Hub - Items GUI", function()
-    local success, result = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/StarHackScripts/StarHack-Hub-Deepstar-Hub/refs/heads/main/StarHack%20Hub%20-%20Piggy%20Pro%20Hub.txt"))()
-    end)
-    if success then
-        print("Starhack Hub executed!")
-    else
-        print("Error executing Starhack Hub")
-    end
-end)
-
--- ✅ Notification when script loads
-StarterGui:SetCore("SendNotification", {
-    Title = "Piggy Script Loaded!";
-    Text = "All features are ready.";
-    Duration = 10;
+-- Notification
+StarterGui:SetCore("SendNotification",{
+    Title="Piggy Script Loaded!",
+    Text="All features are ready.",
+    Duration=10
 })
 
--- ✅ ESP helper
-local function highlightTarget(target, color)
-    local highlight = Instance.new("Highlight")
-    highlight.Adornee = target
-    highlight.FillColor = color
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = target
+--------------------------------------------------
+-- ESP HELPERS
+--------------------------------------------------
+
+local function highlightTarget(target,color)
+
+    if target:FindFirstChild("BMF_Highlight") then return end
+
+    local highlight=Instance.new("Highlight")
+    highlight.Name="BMF_Highlight"
+    highlight.Adornee=target
+    highlight.FillColor=color
+    highlight.OutlineColor=Color3.fromRGB(255,255,255)
+    highlight.FillTransparency=0.5
+    highlight.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent=target
+
 end
 
--- ✅ Add Buttons Below
-createButton("Piggy ESP", function()
-    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+local function createTracer(target,color)
 
-    if piggyFolder and piggyFolder:IsA("Folder") then
-        for _, piggyModel in ipairs(piggyFolder:GetChildren()) do
-            if piggyModel:IsA("Model") then
-                local existingHighlight = piggyModel:FindFirstChildOfClass("Highlight")
-                if not existingHighlight then
-                    highlightTarget(piggyModel, Color3.fromRGB(255, 0, 0)) -- Red ESP
-                end
+    local camera=workspace.CurrentCamera
+    local line=Drawing.new("Line")
+
+    line.Visible=true
+    line.Color=color
+    line.Thickness=2
+
+    local connection
+    connection=RunService.RenderStepped:Connect(function()
+
+        if target and target:FindFirstChild("HumanoidRootPart") then
+
+            local hrp=target.HumanoidRootPart
+            local pos,onScreen=camera:WorldToViewportPoint(hrp.Position)
+
+            if onScreen then
+
+                line.From=Vector2.new(camera.ViewportSize.X/2,camera.ViewportSize.Y)
+                line.To=Vector2.new(pos.X,pos.Y)
+                line.Visible=true
+
+            else
+
+                line.Visible=false
+
             end
-        end
-    else
-        ErrorLog.Text = "Error Log: PiggyNPC folder not found in Workspace"
-    end
-end)
 
-createButton("God Mode", function()
-    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+        else
 
-    if piggyFolder and piggyFolder:IsA("Folder") then
-        for _, bot in ipairs(piggyFolder:GetChildren()) do
-            if bot:IsA("Model") then
-                -- Set Enemy to false
-                local enemyFlag = bot:FindFirstChild("Enemy")
-                if enemyFlag and enemyFlag:IsA("BoolValue") then
-                    enemyFlag.Value = false
-                end
+            line.Visible=false
+            connection:Disconnect()
+            line:Remove()
 
-                -- Destroy TouchInterest in Head
-                local head = bot:FindFirstChild("Head")
-                if head then
-                    local ti = head:FindFirstChildWhichIsA("TouchTransmitter") or head:FindFirstChild("TouchInterest")
-                    if ti then
-                        ti:Destroy()
-                    end
-                end
-
-                -- Destroy TouchInterest in HumanoidRootPart
-                local hrp = bot:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local ti = hrp:FindFirstChildWhichIsA("TouchTransmitter") or hrp:FindFirstChild("TouchInterest")
-                    if ti then
-                        ti:Destroy()
-                    end
-                end
-            end
         end
 
-        print("God Mode activated: Bots neutered.")
-    else
-        ErrorLog.Text = "Error Log: PiggyNPC folder not found in Workspace."
+    end)
+
+end
+
+local function createNameTag(target,text,color)
+
+    if target:FindFirstChild("NameTag") then return end
+
+    local billboard=Instance.new("BillboardGui")
+    billboard.Name="NameTag"
+    billboard.Size=UDim2.new(0,200,0,50)
+    billboard.StudsOffset=Vector3.new(0,3,0)
+    billboard.AlwaysOnTop=true
+    billboard.MaxDistance=500
+    billboard.Parent=target
+
+    local label=Instance.new("TextLabel")
+    label.Size=UDim2.new(1,0,1,0)
+    label.BackgroundTransparency=1
+    label.Text=text
+    label.TextColor3=color
+    label.TextStrokeTransparency=0
+    label.TextScaled=true
+    label.Font=Enum.Font.SourceSansBold
+    label.Parent=billboard
+
+end
+
+--------------------------------------------------
+-- BUTTON FUNCTION
+--------------------------------------------------
+
+local function createButton(name,callback)
+
+    local Button=Instance.new("TextButton")
+
+    Button.Parent=MainFrame
+    Button.Text=name
+    Button.Size=UDim2.new(1,0,0,30)
+    Button.BackgroundColor3=Color3.fromRGB(40,40,40)
+    Button.TextColor3=Color3.fromRGB(255,255,255)
+    Button.Font=Enum.Font.SourceSans
+    Button.TextSize=16
+
+    Button.MouseButton1Click:Connect(function()
+
+        local success,err=pcall(callback)
+
+        if not success then
+            ErrorLog.Text="Error Log: "..err
+        end
+
+    end)
+
+end
+
+--------------------------------------------------
+-- TRAITOR DETECTOR LOOP
+--------------------------------------------------
+
+task.spawn(function()
+
+    while true do
+
+        local found=false
+
+        for _,player in pairs(Players:GetPlayers()) do
+
+            local model=workspace:FindFirstChild(player.Name)
+
+            if model then
+
+                local traitor=model:FindFirstChild("Traitor")
+
+                if traitor and traitor.Value==true then
+
+                    TraitorLabel.Text="Traitor: "..player.Name
+                    found=true
+                    break
+
+                end
+
+            end
+
+        end
+
+        if not found then
+            TraitorLabel.Text="Traitor: It is not in traitor mode, or traitor not found."
+        end
+
+        task.wait(0.5)
+
     end
+
 end)
 
+--------------------------------------------------
+-- INFINITE YIELD
+--------------------------------------------------
 
-createButton("Full Bright", function()
-    Lighting.Ambient = Color3.new(1, 1, 1)
-    Lighting.Brightness = 3
-    Lighting.FogEnd = 100000
-    Lighting.ClockTime = 14
+createButton("Infinite Yield",function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+end)
+
+--------------------------------------------------
+-- DEX
+--------------------------------------------------
+
+createButton("Dex Explorer",function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()
+end)
+
+--------------------------------------------------
+-- PLAYER ESP
+--------------------------------------------------
+
+createButton("Player ESP",function()
+
+    local color=Color3.fromRGB(0,255,0)
+
+    local function apply(character,player)
+
+        if character and character:FindFirstChild("HumanoidRootPart") then
+
+            highlightTarget(character,color)
+            createTracer(character,color)
+            createNameTag(character,player.Name,color)
+
+        end
+
+    end
+
+    for _,player in pairs(Players:GetPlayers()) do
+
+        if player~=LocalPlayer then
+
+            if player.Character then
+                apply(player.Character,player)
+            end
+
+            player.CharacterAdded:Connect(function(char)
+                task.wait(1)
+                apply(char,player)
+            end)
+
+        end
+
+    end
+
+end)
+
+--------------------------------------------------
+-- PIGGY ESP AUTO DETECT
+--------------------------------------------------
+
+createButton("Piggy ESP",function()
+
+    local folder=workspace:FindFirstChild("PiggyNPC")
+
+    if not folder then
+        ErrorLog.Text="Error Log: PiggyNPC folder not found"
+        return
+    end
+
+    local function apply(piggy)
+
+        highlightTarget(piggy,Color3.fromRGB(255,0,0))
+        createTracer(piggy,Color3.fromRGB(255,0,0))
+        createNameTag(piggy,"Piggy",Color3.fromRGB(255,0,0))
+
+    end
+
+    for _,piggy in pairs(folder:GetChildren()) do
+        apply(piggy)
+    end
+
+    folder.ChildAdded:Connect(function(piggy)
+        task.wait(0.5)
+        apply(piggy)
+    end)
+
+end)
+
+--------------------------------------------------
+-- GOD MODE AUTO
+--------------------------------------------------
+
+createButton("God Mode",function()
+
+    local folder=workspace:FindFirstChild("PiggyNPC")
+
+    if not folder then return end
+
+    local function neuter(bot)
+
+        local enemy=bot:FindFirstChild("Enemy")
+        if enemy then enemy.Value=false end
+
+        for _,part in pairs(bot:GetDescendants()) do
+
+            if part:IsA("TouchTransmitter") or part.Name=="TouchInterest" then
+                part:Destroy()
+            end
+
+        end
+
+    end
+
+    for _,bot in pairs(folder:GetChildren()) do
+        neuter(bot)
+    end
+
+    folder.ChildAdded:Connect(function(bot)
+        task.wait(0.5)
+        neuter(bot)
+    end)
+
+end)
+
+--------------------------------------------------
+-- FULL BRIGHT
+--------------------------------------------------
+
+createButton("Full Bright",function()
+
+Lighting.Ambient=Color3.new(1,1,1)
+Lighting.Brightness=3
+Lighting.FogEnd=100000
+Lighting.ClockTime=14
+
 end)
