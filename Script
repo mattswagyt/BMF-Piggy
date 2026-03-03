@@ -243,40 +243,55 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/d
 end)
 
 --------------------------------------------------
--- PLAYER ESP
+-- PLAYER ESP (Piggy Player Mode Support)
 --------------------------------------------------
 
-createButton("Player ESP",function()
+createButton("Player ESP", function()
 
-    local color=Color3.fromRGB(0,255,0)
+    local GREEN = Color3.fromRGB(0,255,0)
+    local RED   = Color3.fromRGB(255,0,0)
 
-    local function apply(character,player)
-
-        if character and character:FindFirstChild("HumanoidRootPart") then
-
-            highlightTarget(character,color)
-            createTracer(character,color)
-            createNameTag(character,player.Name,color)
-
+    local function apply(character, player)
+        if not character or not character:FindFirstChild("HumanoidRootPart") then
+            return
         end
 
+        local color = GREEN
+
+        -- Check for Enemy value under character
+        local enemy = character:FindFirstChild("Enemy")
+        if enemy and enemy:IsA("BoolValue") and enemy.Value == true then
+            color = RED
+        end
+
+        highlightTarget(character, color)
+        createTracer(character, color)
+        createNameTag(character, player.Name, color)
+
+        -- If Enemy value changes while playing
+        if enemy and enemy:IsA("BoolValue") then
+            enemy:GetPropertyChangedSignal("Value"):Connect(function()
+                local newColor = enemy.Value and RED or GREEN
+                highlightTarget(character, newColor)
+                createTracer(character, newColor)
+                createNameTag(character, player.Name, newColor)
+            end)
+        end
     end
 
-    for _,player in pairs(Players:GetPlayers()) do
-
-        if player~=LocalPlayer then
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
 
             if player.Character then
-                apply(player.Character,player)
+                apply(player.Character, player)
             end
 
             player.CharacterAdded:Connect(function(char)
                 task.wait(1)
-                apply(char,player)
+                apply(char, player)
             end)
 
         end
-
     end
 
 end)
@@ -314,37 +329,73 @@ createButton("Piggy ESP",function()
 end)
 
 --------------------------------------------------
--- GOD MODE AUTO
+-- GOD MODE AUTO (Swarm Compatible)
 --------------------------------------------------
 
-createButton("God Mode",function()
+createButton("God Mode", function()
 
-    local folder=workspace:FindFirstChild("PiggyNPC")
-
+    local folder = workspace:FindFirstChild("PiggyNPC")
     if not folder then return end
 
+    local trackedBots = {}
+
     local function neuter(bot)
+        if not bot or not bot.Parent then return end
 
-        local enemy=bot:FindFirstChild("Enemy")
-        if enemy then enemy.Value=false end
-
-        for _,part in pairs(bot:GetDescendants()) do
-
-            if part:IsA("TouchTransmitter") or part.Name=="TouchInterest" then
-                part:Destroy()
-            end
-
+        -- Force Enemy false
+        local enemy = bot:FindFirstChild("Enemy")
+        if enemy and enemy:IsA("BoolValue") then
+            enemy.Value = false
         end
 
+        -- Destroy only specified paths
+        for _, part in ipairs(bot:GetDescendants()) do
+            if part:IsA("TouchTransmitter") or part.Name == "TouchInterest" then
+                part:Destroy()
+            end
+        end
     end
 
-    for _,bot in pairs(folder:GetChildren()) do
+    local function trackBot(bot)
+        if trackedBots[bot] then return end
+        trackedBots[bot] = true
+
+        -- Initial neuter
         neuter(bot)
+
+        -- If new descendants are added later
+        bot.DescendantAdded:Connect(function(obj)
+            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
+                obj:Destroy()
+            end
+        end)
+
+        -- If Enemy value is re-added or flipped
+        bot.ChildAdded:Connect(function(child)
+            if child.Name == "Enemy" and child:IsA("BoolValue") then
+                child.Value = false
+            end
+        end)
     end
 
+    -- Track existing bots
+    for _, bot in ipairs(folder:GetChildren()) do
+        trackBot(bot)
+    end
+
+    -- Track new bots (Swarm support)
     folder.ChildAdded:Connect(function(bot)
-        task.wait(0.5)
-        neuter(bot)
+        trackBot(bot)
+    end)
+
+    -- Continuous enforcement loop (important)
+    task.spawn(function()
+        while folder.Parent do
+            for _, bot in ipairs(folder:GetChildren()) do
+                neuter(bot)
+            end
+            task.wait(0.5)
+        end
     end)
 
 end)
