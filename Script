@@ -401,6 +401,133 @@ createButton("God Mode", function()
 end)
 
 --------------------------------------------------
+-- SOLDIERS IGNORE YOU (ADVANCED VERSION)
+--------------------------------------------------
+
+createButton("Soldiers Ignore You", function()
+
+    local outpost = workspace:FindFirstChild("Outpost")
+    if not outpost then
+        ErrorLog.Text = "Error Log: Outpost not found"
+        return
+    end
+
+    -- Find second folder
+    local folders = {}
+    for _,obj in ipairs(outpost:GetChildren()) do
+        if obj:IsA("Folder") then
+            table.insert(folders,obj)
+        end
+    end
+
+    if #folders < 2 then
+        ErrorLog.Text = "Error Log: 2nd folder missing in Outpost"
+        return
+    end
+
+    local soldierFolder = folders[2]
+
+    local tracked = {}
+
+    --------------------------------------------------
+    -- Disable damage from soldier
+    --------------------------------------------------
+
+    local function neuter(model)
+
+        if not model or not model.Parent then return end
+
+        -- Skip Zizzy
+        if model:FindFirstChild("ZizzyHead", true) then
+            return
+        end
+
+        -- Force Enemy false
+        local enemy = model:FindFirstChild("Enemy")
+        if enemy and enemy:IsA("BoolValue") then
+            enemy.Value = false
+        end
+
+        -- Destroy damage touch objects
+        for _,obj in ipairs(model:GetDescendants()) do
+            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
+                obj:Destroy()
+            end
+        end
+
+    end
+
+    --------------------------------------------------
+    -- Track each soldier model
+    --------------------------------------------------
+
+    local function track(model)
+
+        if tracked[model] then return end
+        tracked[model] = true
+
+        neuter(model)
+
+        -- Delete new touch damage instantly
+        model.DescendantAdded:Connect(function(obj)
+            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
+                obj:Destroy()
+            end
+        end)
+
+        -- If Enemy value respawns
+        model.ChildAdded:Connect(function(child)
+            if child.Name == "Enemy" and child:IsA("BoolValue") then
+                child.Value = false
+            end
+        end)
+
+    end
+
+    --------------------------------------------------
+    -- Track existing soldiers
+    --------------------------------------------------
+
+    for _,model in ipairs(soldierFolder:GetChildren()) do
+        if model:IsA("Model") then
+            track(model)
+        end
+    end
+
+    --------------------------------------------------
+    -- Track newly spawned soldiers
+    --------------------------------------------------
+
+    soldierFolder.ChildAdded:Connect(function(model)
+        if model:IsA("Model") then
+            task.wait(0.2)
+            track(model)
+        end
+    end)
+
+    --------------------------------------------------
+    -- Enforcement loop (important)
+    --------------------------------------------------
+
+    task.spawn(function()
+
+        while soldierFolder.Parent do
+
+            for _,model in ipairs(soldierFolder:GetChildren()) do
+                if model:IsA("Model") then
+                    neuter(model)
+                end
+            end
+
+            task.wait(0.5)
+
+        end
+
+    end)
+
+end)
+
+--------------------------------------------------
 -- FULL BRIGHT
 --------------------------------------------------
 
