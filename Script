@@ -401,7 +401,7 @@ createButton("God Mode", function()
 end)
 
 --------------------------------------------------
--- SOLDIERS IGNORE YOU (ADVANCED VERSION)
+-- SOLDIERS IGNORE YOU (SMART OUTPOST VERSION)
 --------------------------------------------------
 
 createButton("Soldiers Ignore You", function()
@@ -412,44 +412,36 @@ createButton("Soldiers Ignore You", function()
         return
     end
 
-    -- Find second folder
-    local folders = {}
-    for _,obj in ipairs(outpost:GetChildren()) do
-        if obj:IsA("Folder") then
-            table.insert(folders,obj)
-        end
-    end
-
-    if #folders < 2 then
-        ErrorLog.Text = "Error Log: 2nd folder missing in Outpost"
-        return
-    end
-
-    local soldierFolder = folders[2]
-
     local tracked = {}
 
     --------------------------------------------------
-    -- Disable damage from soldier
+    -- Disable soldier damage
     --------------------------------------------------
 
     local function neuter(model)
 
         if not model or not model.Parent then return end
 
-        -- Skip Zizzy
+        -- Ignore Zizzy model
         if model:FindFirstChild("ZizzyHead", true) then
             return
         end
 
-        -- Force Enemy false
+        -- Must have Enemy value
         local enemy = model:FindFirstChild("Enemy")
-        if enemy and enemy:IsA("BoolValue") then
-            enemy.Value = false
+        if not enemy or not enemy:IsA("BoolValue") then
+            return
         end
 
-        -- Destroy damage touch objects
-        for _,obj in ipairs(model:GetDescendants()) do
+        -- Force Enemy false
+        enemy.Value = false
+
+        -- Check HumanoidRootPart
+        local hrp = model:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        -- Destroy damage touch
+        for _,obj in ipairs(hrp:GetChildren()) do
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
                 obj:Destroy()
             end
@@ -458,7 +450,7 @@ createButton("Soldiers Ignore You", function()
     end
 
     --------------------------------------------------
-    -- Track each soldier model
+    -- Track models
     --------------------------------------------------
 
     local function track(model)
@@ -468,14 +460,14 @@ createButton("Soldiers Ignore You", function()
 
         neuter(model)
 
-        -- Delete new touch damage instantly
+        -- Remove new damage triggers instantly
         model.DescendantAdded:Connect(function(obj)
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
                 obj:Destroy()
             end
         end)
 
-        -- If Enemy value respawns
+        -- If Enemy gets re-added
         model.ChildAdded:Connect(function(child)
             if child.Name == "Enemy" and child:IsA("BoolValue") then
                 child.Value = false
@@ -485,37 +477,48 @@ createButton("Soldiers Ignore You", function()
     end
 
     --------------------------------------------------
-    -- Track existing soldiers
+    -- Scan every folder under Outpost
     --------------------------------------------------
 
-    for _,model in ipairs(soldierFolder:GetChildren()) do
-        if model:IsA("Model") then
-            track(model)
+    for _,folder in ipairs(outpost:GetChildren()) do
+
+        if folder:IsA("Folder") then
+
+            for _,model in ipairs(folder:GetChildren()) do
+                if model:IsA("Model") then
+                    track(model)
+                end
+            end
+
+            -- Track new models spawning
+            folder.ChildAdded:Connect(function(model)
+                if model:IsA("Model") then
+                    task.wait(0.2)
+                    track(model)
+                end
+            end)
+
         end
+
     end
 
     --------------------------------------------------
-    -- Track newly spawned soldiers
-    --------------------------------------------------
-
-    soldierFolder.ChildAdded:Connect(function(model)
-        if model:IsA("Model") then
-            task.wait(0.2)
-            track(model)
-        end
-    end)
-
-    --------------------------------------------------
-    -- Enforcement loop (important)
+    -- Continuous enforcement loop
     --------------------------------------------------
 
     task.spawn(function()
 
-        while soldierFolder.Parent do
+        while outpost.Parent do
 
-            for _,model in ipairs(soldierFolder:GetChildren()) do
-                if model:IsA("Model") then
-                    neuter(model)
+            for _,folder in ipairs(outpost:GetChildren()) do
+                if folder:IsA("Folder") then
+
+                    for _,model in ipairs(folder:GetChildren()) do
+                        if model:IsA("Model") then
+                            neuter(model)
+                        end
+                    end
+
                 end
             end
 
