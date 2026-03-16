@@ -328,204 +328,196 @@ createButton("Piggy ESP",function()
 
 end)
 
---------------------------------------------------
--- GOD MODE AUTO (Swarm Compatible)
---------------------------------------------------
-
 createButton("God Mode", function()
-
-    local folder = workspace:FindFirstChild("PiggyNPC")
-    if not folder then return end
-
-    local trackedBots = {}
-
-    local function neuter(bot)
-        if not bot or not bot.Parent then return end
-
-        -- Force Enemy false
-        local enemy = bot:FindFirstChild("Enemy")
-        if enemy and enemy:IsA("BoolValue") then
-            enemy.Value = false
-        end
-
-        -- Destroy only specified paths
-        for _, part in ipairs(bot:GetDescendants()) do
-            if part:IsA("TouchTransmitter") or part.Name == "TouchInterest" then
-                part:Destroy()
-            end
-        end
-    end
-
-    local function trackBot(bot)
-        if trackedBots[bot] then return end
-        trackedBots[bot] = true
-
-        -- Initial neuter
-        neuter(bot)
-
-        -- If new descendants are added later
-        bot.DescendantAdded:Connect(function(obj)
-            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
-                obj:Destroy()
-            end
-        end)
-
-        -- If Enemy value is re-added or flipped
-        bot.ChildAdded:Connect(function(child)
-            if child.Name == "Enemy" and child:IsA("BoolValue") then
-                child.Value = false
-            end
-        end)
-    end
-
-    -- Track existing bots
-    for _, bot in ipairs(folder:GetChildren()) do
-        trackBot(bot)
-    end
-
-    -- Track new bots (Swarm support)
-    folder.ChildAdded:Connect(function(bot)
-        trackBot(bot)
-    end)
-
-    -- Continuous enforcement loop (important)
-    task.spawn(function()
-        while folder.Parent do
-            for _, bot in ipairs(folder:GetChildren()) do
-                neuter(bot)
-            end
-            task.wait(0.5)
-        end
-    end)
-
-end)
-
---------------------------------------------------
--- SOLDIERS IGNORE YOU (SMART OUTPOST VERSION)
---------------------------------------------------
-
-createButton("Soldiers Ignore You", function()
-
-    local outpost = workspace:FindFirstChild("Outpost")
-    if not outpost then
-        ErrorLog.Text = "Error Log: Outpost not found"
-        return
-    end
 
     local tracked = {}
 
     --------------------------------------------------
-    -- Disable soldier damage
+    -- BASE NEUTER
     --------------------------------------------------
 
     local function neuter(model)
-
         if not model or not model.Parent then return end
 
-        -- Ignore Zizzy model
-        if model:FindFirstChild("ZizzyHead", true) then
-            return
-        end
-
-        -- Must have Enemy value
         local enemy = model:FindFirstChild("Enemy")
-        if not enemy or not enemy:IsA("BoolValue") then
-            return
+        if enemy and enemy:IsA("BoolValue") then
+            enemy.Value = false
         end
 
-        -- Force Enemy false
-        enemy.Value = false
-
-        -- Check HumanoidRootPart
-        local hrp = model:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        -- Destroy damage touch
-        for _,obj in ipairs(hrp:GetChildren()) do
-            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
-                obj:Destroy()
+        for _, v in ipairs(model:GetDescendants()) do
+            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                v:Destroy()
             end
         end
-
     end
 
     --------------------------------------------------
-    -- Track models
+    -- TRACK MODEL (GENERIC)
     --------------------------------------------------
 
     local function track(model)
-
         if tracked[model] then return end
         tracked[model] = true
 
         neuter(model)
 
-        -- Remove new damage triggers instantly
         model.DescendantAdded:Connect(function(obj)
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
                 obj:Destroy()
             end
         end)
 
-        -- If Enemy gets re-added
         model.ChildAdded:Connect(function(child)
             if child.Name == "Enemy" and child:IsA("BoolValue") then
                 child.Value = false
             end
         end)
-
     end
 
     --------------------------------------------------
-    -- Scan every folder under Outpost
+    -- TRACK FOLDER RECURSIVELY
     --------------------------------------------------
 
-    for _,folder in ipairs(outpost:GetChildren()) do
+    local function trackFolder(folder)
+        if not folder then return end
 
-        if folder:IsA("Folder") then
-
-            for _,model in ipairs(folder:GetChildren()) do
-                if model:IsA("Model") then
-                    track(model)
-                end
+        -- Track existing
+        for _, obj in ipairs(folder:GetChildren()) do
+            if obj:IsA("Model") then
+                track(obj)
             end
-
-            -- Track new models spawning
-            folder.ChildAdded:Connect(function(model)
-                if model:IsA("Model") then
-                    task.wait(0.2)
-                    track(model)
-                end
-            end)
-
         end
 
+        -- Track new
+        folder.ChildAdded:Connect(function(obj)
+            if obj:IsA("Model") then
+                track(obj)
+            end
+        end)
     end
 
     --------------------------------------------------
-    -- Continuous enforcement loop
+    -- PIGGYNPC (SWARM)
     --------------------------------------------------
 
-    task.spawn(function()
+    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+    if piggyFolder then
+        trackFolder(piggyFolder)
+    end
 
-        while outpost.Parent do
+    --------------------------------------------------
+    -- OUTPOST (SOLDIERS) - ZERO DELAY
+    --------------------------------------------------
 
-            for _,folder in ipairs(outpost:GetChildren()) do
-                if folder:IsA("Folder") then
-
-                    for _,model in ipairs(folder:GetChildren()) do
-                        if model:IsA("Model") then
-                            neuter(model)
-                        end
-                    end
-
-                end
+    local outpost = workspace:FindFirstChild("Outpost")
+    if outpost then
+        for _, folder in ipairs(outpost:GetChildren()) do
+            if folder:IsA("Folder") then
+                trackFolder(folder)
             end
-
-            task.wait(0.5)
-
         end
 
+        outpost.ChildAdded:Connect(function(folder)
+            if folder:IsA("Folder") then
+                trackFolder(folder)
+            end
+        end)
+    end
+
+    --------------------------------------------------
+    -- MAP TARGET TRACKER (City / Carnival / Forest)
+    --------------------------------------------------
+
+    local function trackMap(mapName, headName, destroyHead)
+        local map = workspace:FindFirstChild(mapName)
+        if not map then return end
+
+        local function checkModel(model)
+            if not model:IsA("Model") then return end
+
+            if model:FindFirstChild(headName, true) then
+                track(model)
+
+                -- Extra logic
+                if destroyHead then
+                    local head = model:FindFirstChild("Head")
+                    if head then head:Destroy() end
+                end
+            end
+        end
+
+        -- Scan existing
+        for _, folder in ipairs(map:GetChildren()) do
+            if folder:IsA("Folder") then
+                for _, model in ipairs(folder:GetChildren()) do
+                    checkModel(model)
+                end
+
+                folder.ChildAdded:Connect(checkModel)
+            end
+        end
+
+        -- New folders
+        map.ChildAdded:Connect(function(folder)
+            if folder:IsA("Folder") then
+                for _, model in ipairs(folder:GetChildren()) do
+                    checkModel(model)
+                end
+
+                folder.ChildAdded:Connect(checkModel)
+            end
+        end)
+    end
+
+    --------------------------------------------------
+    -- APPLY MAP SYSTEMS
+    --------------------------------------------------
+
+    trackMap("City", "PiggyHead", true)     -- Grandmother
+    trackMap("Carnival", "FoxyHead", false) -- Foxy
+    trackMap("Forest", "DogHead", false)    -- Doggy
+
+    --------------------------------------------------
+    -- MALL LASERS (ZERO DELAY)
+    --------------------------------------------------
+
+    local function handleLasers(container)
+        for _, v in ipairs(container:GetDescendants()) do
+            if v:IsA("Model") and v.Name == "Lasers" then
+                v:Destroy()
+            end
+        end
+
+        container.DescendantAdded:Connect(function(v)
+            if v:IsA("Model") and v.Name == "Lasers" then
+                v:Destroy()
+            end
+        end)
+    end
+
+    local mall = workspace:FindFirstChild("Mall")
+    if mall then
+        local loaded = workspace:FindFirstChild("LoadedMap")
+        if loaded and loaded:FindFirstChild("Part1") then
+            local jail = loaded.Part1:FindFirstChild("JailbreakEvent")
+            if jail then
+                handleLasers(jail)
+            end
+        end
+    end
+
+    workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Mall" then
+            task.wait(0.2)
+
+            local loaded = workspace:FindFirstChild("LoadedMap")
+            if loaded and loaded:FindFirstChild("Part1") then
+                local jail = loaded.Part1:FindFirstChild("JailbreakEvent")
+                if jail then
+                    handleLasers(jail)
+                end
+            end
+        end
     end)
 
 end)
