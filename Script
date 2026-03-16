@@ -400,10 +400,65 @@ createButton("God Mode", function()
     -- PIGGYNPC (SWARM)
     --------------------------------------------------
 
-    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
-    if piggyFolder then
-        trackFolder(piggyFolder)
+   local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+
+if piggyFolder then
+
+    local function hardNeuter(model)
+        if not model or not model.Parent then return end
+
+        -- Force Enemy false
+        local enemy = model:FindFirstChild("Enemy")
+        if enemy and enemy:IsA("BoolValue") then
+            enemy.Value = false
+        end
+
+        -- DESTROY ALL TOUCH INTERESTS (EVERY TIME)
+        for _, v in ipairs(model:GetDescendants()) do
+            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                v:Destroy()
+            end
+        end
     end
+
+    local function trackBot(bot)
+        if not bot:IsA("Model") then return end
+
+        -- Initial wipe
+        hardNeuter(bot)
+
+        -- Instant removal when added
+        bot.DescendantAdded:Connect(function(obj)
+            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
+                obj:Destroy()
+            end
+        end)
+
+        -- Force Enemy = false forever
+        bot.ChildAdded:Connect(function(child)
+            if child.Name == "Enemy" and child:IsA("BoolValue") then
+                child.Value = false
+            end
+        end)
+
+        -- 🔥 CRITICAL: CONSTANT LOOP (ANTI-SERVER RECREATE)
+        task.spawn(function()
+            while bot.Parent do
+                hardNeuter(bot)
+                task.wait() -- runs every frame
+            end
+        end)
+    end
+
+    -- Track existing
+    for _, bot in ipairs(piggyFolder:GetChildren()) do
+        trackBot(bot)
+    end
+
+    -- Track new (Swarm)
+    piggyFolder.ChildAdded:Connect(trackBot)
+
+end
 
     --------------------------------------------------
     -- OUTPOST (SOLDIERS) - ZERO DELAY
