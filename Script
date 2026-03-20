@@ -243,7 +243,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/d
 end)
 
 --------------------------------------------------
--- PLAYER ESP (Piggy Player Mode Support)
+-- PLAYER ESP (CONSTANT + PIGGY + TRAITOR SUPPORT)
 --------------------------------------------------
 
 createButton("Player ESP", function()
@@ -251,46 +251,87 @@ createButton("Player ESP", function()
     local GREEN = Color3.fromRGB(0,255,0)
     local RED   = Color3.fromRGB(255,0,0)
 
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+
+    local tracked = {}
+
     local function apply(character, player)
         if not character or not character:FindFirstChild("HumanoidRootPart") then
             return
         end
 
-        local color = GREEN
+        -- Prevent reapplying ESP multiple times
+        if tracked[character] then return end
+        tracked[character] = true
 
-        -- Check for Enemy value under character
-        local enemy = character:FindFirstChild("Enemy")
-        if enemy and enemy:IsA("BoolValue") and enemy.Value == true then
-            color = RED
+        local function updateESP()
+            local color = GREEN
+            local label = player.Name
+
+            -- Piggy (Enemy)
+            local enemy = character:FindFirstChild("Enemy")
+            if enemy and enemy:IsA("BoolValue") and enemy.Value == true then
+                color = RED
+            end
+
+            -- Traitor (priority over normal name)
+            local traitor = character:FindFirstChild("Traitor")
+            if traitor and traitor:IsA("BoolValue") and traitor.Value == true then
+                color = RED
+                label = "TRAITOR"
+            end
+
+            highlightTarget(character, color)
+            createTracer(character, color)
+            createNameTag(character, label, color)
         end
 
-        highlightTarget(character, color)
-        createTracer(character, color)
-        createNameTag(character, player.Name, color)
+        -- Initial apply
+        updateESP()
 
-        -- If Enemy value changes while playing
+        -- Listen for Enemy changes
+        local enemy = character:FindFirstChild("Enemy")
         if enemy and enemy:IsA("BoolValue") then
-            enemy:GetPropertyChangedSignal("Value"):Connect(function()
-                local newColor = enemy.Value and RED or GREEN
-                highlightTarget(character, newColor)
-                createTracer(character, newColor)
-                createNameTag(character, player.Name, newColor)
-            end)
+            enemy:GetPropertyChangedSignal("Value"):Connect(updateESP)
+        end
+
+        -- Listen for Traitor changes
+        local traitor = character:FindFirstChild("Traitor")
+        if traitor and traitor:IsA("BoolValue") then
+            traitor:GetPropertyChangedSignal("Value"):Connect(updateESP)
         end
     end
 
+    -- Constant player detection loop
+    task.spawn(function()
+        while true do
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    local char = player.Character
+                    if char then
+                        apply(char, player)
+                    end
+                end
+            end
+            task.wait(1) -- adjust if you want faster detection
+        end
+    end)
+
+    -- Also hook CharacterAdded for instant response
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(char)
+            task.wait(0.5)
+            apply(char, player)
+        end)
+    end)
+
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-
-            if player.Character then
-                apply(player.Character, player)
-            end
-
             player.CharacterAdded:Connect(function(char)
-                task.wait(1)
+                task.wait(0.5)
                 apply(char, player)
             end)
-
         end
     end
 
@@ -329,6 +370,9 @@ createButton("Piggy ESP",function()
 end)
 
 
+--------------------------------------------------
+    -- God Mode (FIXED)
+--------------------------------------------------
 
 createButton("God Mode", function()
 
@@ -354,7 +398,27 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- TRACK MODEL (GENERIC)
+    -- 🔥 HARD NEUTER LOOP (NEW - USED EVERYWHERE)
+    --------------------------------------------------
+
+    local function hardLoop(model)
+        task.spawn(function()
+            while model and model.Parent do
+                neuter(model)
+
+                -- Grandmother head fix
+                local head = model:FindFirstChild("Head")
+                if head and model:FindFirstChild("PiggyHead", true) then
+                    head:Destroy()
+                end
+
+                task.wait()
+            end
+        end)
+    end
+
+    --------------------------------------------------
+    -- TRACK MODEL (UPDATED WITH LOOP)
     --------------------------------------------------
 
     local function track(model)
@@ -362,6 +426,7 @@ createButton("God Mode", function()
         tracked[model] = true
 
         neuter(model)
+        hardLoop(model) -- 🔥 NEW
 
         model.DescendantAdded:Connect(function(obj)
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
@@ -383,14 +448,12 @@ createButton("God Mode", function()
     local function trackFolder(folder)
         if not folder then return end
 
-        -- Track existing
         for _, obj in ipairs(folder:GetChildren()) do
             if obj:IsA("Model") then
                 track(obj)
             end
         end
 
-        -- Track new
         folder.ChildAdded:Connect(function(obj)
             if obj:IsA("Model") then
                 track(obj)
@@ -402,68 +465,25 @@ createButton("God Mode", function()
     -- PIGGYNPC (SWARM)
     --------------------------------------------------
 
-   local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
 
-if piggyFolder then
+    if piggyFolder then
 
-    local function hardNeuter(model)
-        if not model or not model.Parent then return end
+        local function trackBot(bot)
+            if not bot:IsA("Model") then return end
 
-        -- Force Enemy false
-        local enemy = model:FindFirstChild("Enemy")
-        if enemy and enemy:IsA("BoolValue") then
-            enemy.Value = false
+            track(bot) -- uses new loop automatically
         end
 
-        -- DESTROY ALL TOUCH INTERESTS (EVERY TIME)
-        for _, v in ipairs(model:GetDescendants()) do
-            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
-                v:Destroy()
-            end
+        for _, bot in ipairs(piggyFolder:GetChildren()) do
+            trackBot(bot)
         end
+
+        piggyFolder.ChildAdded:Connect(trackBot)
     end
-
-    local function trackBot(bot)
-        if not bot:IsA("Model") then return end
-
-        -- Initial wipe
-        hardNeuter(bot)
-
-        -- Instant removal when added
-        bot.DescendantAdded:Connect(function(obj)
-            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
-                obj:Destroy()
-            end
-        end)
-
-        -- Force Enemy = false forever
-        bot.ChildAdded:Connect(function(child)
-            if child.Name == "Enemy" and child:IsA("BoolValue") then
-                child.Value = false
-            end
-        end)
-
-        -- 🔥 CRITICAL: CONSTANT LOOP (ANTI-SERVER RECREATE)
-        task.spawn(function()
-            while bot.Parent do
-                hardNeuter(bot)
-                task.wait() -- runs every frame
-            end
-        end)
-    end
-
-    -- Track existing
-    for _, bot in ipairs(piggyFolder:GetChildren()) do
-        trackBot(bot)
-    end
-
-    -- Track new (Swarm)
-    piggyFolder.ChildAdded:Connect(trackBot)
-
-end
 
     --------------------------------------------------
-    -- OUTPOST (SOLDIERS) - ZERO DELAY
+    -- OUTPOST (SOLDIERS) - NOW CONSTANT LOOP
     --------------------------------------------------
 
     local outpost = workspace:FindFirstChild("Outpost")
@@ -482,10 +502,10 @@ end
     end
 
     --------------------------------------------------
-    -- MAP TARGET TRACKER (City / Carnival / Forest)
+    -- MAP TARGET TRACKER (NOW CONSTANT LOOP)
     --------------------------------------------------
 
-    local function trackMap(mapName, headName, destroyHead)
+    local function trackMap(mapName, headName)
         local map = workspace:FindFirstChild(mapName)
         if not map then return end
 
@@ -493,17 +513,10 @@ end
             if not model:IsA("Model") then return end
 
             if model:FindFirstChild(headName, true) then
-                track(model)
-
-                -- Extra logic
-                if destroyHead then
-                    local head = model:FindFirstChild("Head")
-                    if head then head:Destroy() end
-                end
+                track(model) -- now has loop
             end
         end
 
-        -- Scan existing
         for _, folder in ipairs(map:GetChildren()) do
             if folder:IsA("Folder") then
                 for _, model in ipairs(folder:GetChildren()) do
@@ -514,7 +527,6 @@ end
             end
         end
 
-        -- New folders
         map.ChildAdded:Connect(function(folder)
             if folder:IsA("Folder") then
                 for _, model in ipairs(folder:GetChildren()) do
@@ -530,12 +542,47 @@ end
     -- APPLY MAP SYSTEMS
     --------------------------------------------------
 
-    trackMap("City", "PiggyHead", true)     -- Grandmother
-    trackMap("Carnival", "FoxyHead", false) -- Foxy
-    trackMap("Forest", "DogHead", false)    -- Doggy
+    trackMap("City", "PiggyHead")     
+    trackMap("Carnival", "FoxyHead") 
+    trackMap("Forest", "DogHead")    
 
     --------------------------------------------------
-    -- MALL LASERS (ZERO DELAY)
+    -- 🔥 MR P EXPLOSION PROTECTION (NEW)
+    --------------------------------------------------
+
+    task.spawn(function()
+        while true do
+            local plant = workspace:FindFirstChild("Plant")
+            if plant then
+                for _, folder in ipairs(plant:GetChildren()) do
+                    if folder:IsA("Folder") then
+                        for _, model in ipairs(folder:GetChildren()) do
+                            if model:IsA("Model") then
+                                
+                                local projectiles = model:FindFirstChild("Projectiles")
+                                if projectiles then
+                                    
+                                    local projectile = projectiles:FindFirstChild("HomingProjectile", true)
+                                    if projectile then
+                                        for _, v in ipairs(projectile:GetDescendants()) do
+                                            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                                                v:Destroy()
+                                            end
+                                        end
+                                    end
+
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait()
+        end
+    end)
+
+    --------------------------------------------------
+    -- MALL LASERS (UNCHANGED)
     --------------------------------------------------
 
     local function handleLasers(container)
@@ -589,5 +636,116 @@ Lighting.Ambient=Color3.new(1,1,1)
 Lighting.Brightness=3
 Lighting.FogEnd=100000
 Lighting.ClockTime=14
+
+end)
+
+--------------------------------------------------
+-- Q TO FLY + NOCLIP (INFINITE YIELD STYLE)
+--------------------------------------------------
+
+createButton("Q to Fly and Noclip", function()
+
+    local UIS = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local Players = game:GetService("Players")
+
+    local player = Players.LocalPlayer
+    local flying = false
+
+    local bv, bg
+    local noclipConnection
+    local flyConnection
+
+    local speed = 60
+
+    local function startFly()
+        local character = player.Character or player.CharacterAdded:Wait()
+        local hrp = character:WaitForChild("HumanoidRootPart")
+
+        -- Body movers (Infinite Yield style)
+        bv = Instance.new("BodyVelocity")
+        bg = Instance.new("BodyGyro")
+
+        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        bv.Velocity = Vector3.new(0,0,0)
+        bv.Parent = hrp
+
+        bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bg.CFrame = hrp.CFrame
+        bg.Parent = hrp
+
+        -- Fly movement loop
+        flyConnection = RunService.RenderStepped:Connect(function()
+            local camera = workspace.CurrentCamera
+            local moveDirection = Vector3.new()
+
+            if UIS:IsKeyDown(Enum.KeyCode.W) then
+                moveDirection = moveDirection + camera.CFrame.LookVector
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then
+                moveDirection = moveDirection - camera.CFrame.LookVector
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then
+                moveDirection = moveDirection - camera.CFrame.RightVector
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then
+                moveDirection = moveDirection + camera.CFrame.RightVector
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.Space) then
+                moveDirection = moveDirection + Vector3.new(0,1,0)
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+                moveDirection = moveDirection - Vector3.new(0,1,0)
+            end
+
+            if moveDirection.Magnitude > 0 then
+                bv.Velocity = moveDirection.Unit * speed
+            else
+                bv.Velocity = Vector3.new(0,0,0)
+            end
+
+            bg.CFrame = camera.CFrame
+        end)
+
+        -- Noclip loop (Infinite Yield style)
+        noclipConnection = RunService.Stepped:Connect(function()
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end)
+    end
+
+    local function stopFly()
+        if bv then bv:Destroy() end
+        if bg then bg:Destroy() end
+
+        if flyConnection then flyConnection:Disconnect() end
+        if noclipConnection then noclipConnection:Disconnect() end
+
+        local character = player.Character
+        if character then
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+
+    -- Q toggle
+    UIS.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Q then
+            flying = not flying
+
+            if flying then
+                startFly()
+            else
+                stopFly()
+            end
+        end
+    end)
 
 end)
