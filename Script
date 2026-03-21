@@ -398,18 +398,39 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- 🔥 HARD NEUTER LOOP (NEW - USED EVERYWHERE)
+    -- 🔥 HARD LOOP (NEW - ALL NPCS)
     --------------------------------------------------
 
-    local function hardLoop(model)
+    local function hardLoop(model, isGrandmother)
         task.spawn(function()
             while model and model.Parent do
-                neuter(model)
 
-                -- Grandmother head fix
-                local head = model:FindFirstChild("Head")
-                if head and model:FindFirstChild("PiggyHead", true) then
-                    head:Destroy()
+                -- Force Enemy false
+                local enemy = model:FindFirstChild("Enemy")
+                if enemy and enemy:IsA("BoolValue") then
+                    enemy.Value = false
+                end
+
+                -- HRP protection (ALL NPCs)
+                local hrp = model:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    for _, v in ipairs(hrp:GetDescendants()) do
+                        if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                            v:Destroy()
+                        end
+                    end
+                end
+
+                -- Grandmother head ONLY
+                if isGrandmother then
+                    local head = model:FindFirstChild("Head")
+                    if head then
+                        for _, v in ipairs(head:GetDescendants()) do
+                            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                                v:Destroy()
+                            end
+                        end
+                    end
                 end
 
                 task.wait()
@@ -418,15 +439,15 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- TRACK MODEL (UPDATED WITH LOOP)
+    -- TRACK MODEL (UPDATED)
     --------------------------------------------------
 
-    local function track(model)
+    local function track(model, isGrandmother)
         if tracked[model] then return end
         tracked[model] = true
 
         neuter(model)
-        hardLoop(model) -- 🔥 NEW
+        hardLoop(model, isGrandmother)
 
         model.DescendantAdded:Connect(function(obj)
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
@@ -450,29 +471,100 @@ createButton("God Mode", function()
 
         for _, obj in ipairs(folder:GetChildren()) do
             if obj:IsA("Model") then
-                track(obj)
+                track(obj, false)
             end
         end
 
         folder.ChildAdded:Connect(function(obj)
             if obj:IsA("Model") then
-                track(obj)
+                track(obj, false)
             end
         end)
     end
 
     --------------------------------------------------
-    -- PIGGYNPC (SWARM)
+    -- 🔥 MR P EXPLOSION PROTECTION (NEW)
+    --------------------------------------------------
+
+    task.spawn(function()
+        while true do
+            local plant = workspace:FindFirstChild("Plant")
+
+            if plant then
+                for _, folder in ipairs(plant:GetChildren()) do
+                    if folder:IsA("Folder") then
+                        for _, model in ipairs(folder:GetChildren()) do
+                            if model:IsA("Model") then
+
+                                local proj = model:FindFirstChild("Projectiles")
+                                if proj then
+                                    local homing = proj:FindFirstChild("HomingProjectile", true)
+
+                                    if homing then
+                                        for _, v in ipairs(homing:GetDescendants()) do
+                                            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                                                v:Destroy()
+                                            end
+                                        end
+                                    end
+                                end
+
+                            end
+                        end
+                    end
+                end
+            end
+
+            task.wait()
+        end
+    end)
+
+    --------------------------------------------------
+    -- PIGGYNPC (SWARM) (UNCHANGED)
     --------------------------------------------------
 
     local piggyFolder = workspace:FindFirstChild("PiggyNPC")
 
     if piggyFolder then
 
+        local function hardNeuter(model)
+            if not model or not model.Parent then return end
+
+            local enemy = model:FindFirstChild("Enemy")
+            if enemy and enemy:IsA("BoolValue") then
+                enemy.Value = false
+            end
+
+            for _, v in ipairs(model:GetDescendants()) do
+                if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                    v:Destroy()
+                end
+            end
+        end
+
         local function trackBot(bot)
             if not bot:IsA("Model") then return end
 
-            track(bot) -- uses new loop automatically
+            hardNeuter(bot)
+
+            bot.DescendantAdded:Connect(function(obj)
+                if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
+                    obj:Destroy()
+                end
+            end)
+
+            bot.ChildAdded:Connect(function(child)
+                if child.Name == "Enemy" and child:IsA("BoolValue") then
+                    child.Value = false
+                end
+            end)
+
+            task.spawn(function()
+                while bot.Parent do
+                    hardNeuter(bot)
+                    task.wait()
+                end
+            end)
         end
 
         for _, bot in ipairs(piggyFolder:GetChildren()) do
@@ -480,10 +572,11 @@ createButton("God Mode", function()
         end
 
         piggyFolder.ChildAdded:Connect(trackBot)
+
     end
 
     --------------------------------------------------
-    -- OUTPOST (SOLDIERS) - NOW CONSTANT LOOP
+    -- OUTPOST (SOLDIERS) (NOW LOOPED)
     --------------------------------------------------
 
     local outpost = workspace:FindFirstChild("Outpost")
@@ -502,10 +595,10 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- MAP TARGET TRACKER (NOW CONSTANT LOOP)
+    -- MAP TARGET TRACKER (UPDATED)
     --------------------------------------------------
 
-    local function trackMap(mapName, headName)
+    local function trackMap(mapName, headName, isGrandmother)
         local map = workspace:FindFirstChild(mapName)
         if not map then return end
 
@@ -513,10 +606,11 @@ createButton("God Mode", function()
             if not model:IsA("Model") then return end
 
             if model:FindFirstChild(headName, true) then
-                track(model) -- now has loop
+                track(model, isGrandmother)
             end
         end
 
+        -- Existing
         for _, folder in ipairs(map:GetChildren()) do
             if folder:IsA("Folder") then
                 for _, model in ipairs(folder:GetChildren()) do
@@ -527,6 +621,7 @@ createButton("God Mode", function()
             end
         end
 
+        -- New folders
         map.ChildAdded:Connect(function(folder)
             if folder:IsA("Folder") then
                 for _, model in ipairs(folder:GetChildren()) do
@@ -542,47 +637,12 @@ createButton("God Mode", function()
     -- APPLY MAP SYSTEMS
     --------------------------------------------------
 
-    trackMap("City", "PiggyHead")     
-    trackMap("Carnival", "FoxyHead") 
-    trackMap("Forest", "DogHead")    
+    trackMap("City", "PiggyHead", true)
+    trackMap("Carnival", "FoxyHead", false)
+    trackMap("Forest", "DogHead", false)
 
     --------------------------------------------------
-    -- 🔥 MR P EXPLOSION PROTECTION (NEW)
-    --------------------------------------------------
-
-    task.spawn(function()
-        while true do
-            local plant = workspace:FindFirstChild("Plant")
-            if plant then
-                for _, folder in ipairs(plant:GetChildren()) do
-                    if folder:IsA("Folder") then
-                        for _, model in ipairs(folder:GetChildren()) do
-                            if model:IsA("Model") then
-                                
-                                local projectiles = model:FindFirstChild("Projectiles")
-                                if projectiles then
-                                    
-                                    local projectile = projectiles:FindFirstChild("HomingProjectile", true)
-                                    if projectile then
-                                        for _, v in ipairs(projectile:GetDescendants()) do
-                                            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
-                                                v:Destroy()
-                                            end
-                                        end
-                                    end
-
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-            task.wait()
-        end
-    end)
-
-    --------------------------------------------------
-    -- MALL LASERS (UNCHANGED)
+    -- MALL LASERS (FULLY RESTORED)
     --------------------------------------------------
 
     local function handleLasers(container)
