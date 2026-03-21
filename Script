@@ -441,7 +441,7 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- 🔥 NEW: UNIVERSAL PIGGY-STYLE LOOP SYSTEM
+    -- 🔥 UNIVERSAL PIGGY-STYLE LOOP SYSTEM
     --------------------------------------------------
 
     local function hardNeuterUniversal(model, isGrandmother)
@@ -458,7 +458,6 @@ createButton("God Mode", function()
             end
         end
 
-        -- Only extra condition: Grandmother head safety
         if isGrandmother then
             local head = model:FindFirstChild("Head")
             if head then
@@ -488,7 +487,6 @@ createButton("God Mode", function()
             end
         end)
 
-        -- 🔥 SAME LOOP AS PIGGY (FIX)
         task.spawn(function()
             while bot.Parent do
                 hardNeuterUniversal(bot, isGrandmother)
@@ -498,41 +496,79 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- 🔥 NEW: MR P EXPLOSION PROTECTION
+    -- 🔥 TRUE AUTO MAP DETECTION (FIX)
     --------------------------------------------------
 
+    local function autoDetectMap(mapName, headName, isGrandmother)
+        local map = workspace:FindFirstChild(mapName)
+        if not map then return end
+
+        local function handle(obj)
+            if not obj:IsA("Model") then return end
+
+            if obj:FindFirstChild("Enemy")
+            or obj:FindFirstChild("HumanoidRootPart")
+            or obj:FindFirstChild(headName, true) then
+
+                trackBotUniversal(obj, isGrandmother)
+            end
+        end
+
+        -- 🔥 Detect EVERYTHING instantly
+        map.DescendantAdded:Connect(handle)
+
+        -- Scan existing
+        for _, obj in ipairs(map:GetDescendants()) do
+            handle(obj)
+        end
+    end
+
+    autoDetectMap("City", "PiggyHead", true)
+    autoDetectMap("Carnival", "FoxyHead", false)
+    autoDetectMap("Forest", "DogHead", false)
+
+    --------------------------------------------------
+    -- 🔥 MR P EXPLOSION PROTECTION (FIXED PROPERLY)
+    --------------------------------------------------
+
+    local function handleMrP(obj)
+        if not obj then return end
+
+        if obj.Name == "HomingProjectile" then
+            for _, v in ipairs(obj:GetDescendants()) do
+                if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                    v:Destroy()
+                end
+            end
+        end
+    end
+
+    local plant = workspace:FindFirstChild("Plant")
+    if plant then
+        plant.DescendantAdded:Connect(handleMrP)
+
+        for _, obj in ipairs(plant:GetDescendants()) do
+            handleMrP(obj)
+        end
+    end
+
+    -- 🔥 Backup loop (anti-recreate)
     task.spawn(function()
         while true do
             local plant = workspace:FindFirstChild("Plant")
-
             if plant then
-                for _, folder in ipairs(plant:GetChildren()) do
-                    if folder:IsA("Folder") then
-                        for _, model in ipairs(folder:GetChildren()) do
-                            if model:IsA("Model") then
-                                local proj = model:FindFirstChild("Projectiles")
-                                if proj then
-                                    local homing = proj:FindFirstChild("HomingProjectile", true)
-                                    if homing then
-                                        for _, v in ipairs(homing:GetDescendants()) do
-                                            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
-                                                v:Destroy()
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
+                for _, obj in ipairs(plant:GetDescendants()) do
+                    if obj.Name == "HomingProjectile" then
+                        handleMrP(obj)
                     end
                 end
             end
-
             task.wait()
         end
     end)
 
     --------------------------------------------------
-    -- PIGGYNPC (SWARM) (100% ORIGINAL - UNTOUCHED)
+    -- PIGGYNPC (SWARM) (100% ORIGINAL)
     --------------------------------------------------
 
     local piggyFolder = workspace:FindFirstChild("PiggyNPC")
@@ -588,7 +624,7 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- 🔥 OUTPOST (NOW TRUE LOOP, ADDED ONLY)
+    -- OUTPOST (UNCHANGED LOGIC + LOOP ADDED)
     --------------------------------------------------
 
     local outpost = workspace:FindFirstChild("Outpost")
@@ -607,48 +643,7 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- 🔥 MAP NPCS (DOGGY / FOXY / GRANDMA)
-    --------------------------------------------------
-
-    local function trackMap(mapName, headName, isGrandmother)
-        local map = workspace:FindFirstChild(mapName)
-        if not map then return end
-
-        local function checkModel(model)
-            if not model:IsA("Model") then return end
-
-            if model:FindFirstChild(headName, true) then
-                trackBotUniversal(model, isGrandmother)
-            end
-        end
-
-        for _, folder in ipairs(map:GetChildren()) do
-            if folder:IsA("Folder") then
-                for _, model in ipairs(folder:GetChildren()) do
-                    checkModel(model)
-                end
-
-                folder.ChildAdded:Connect(checkModel)
-            end
-        end
-
-        map.ChildAdded:Connect(function(folder)
-            if folder:IsA("Folder") then
-                for _, model in ipairs(folder:GetChildren()) do
-                    checkModel(model)
-                end
-
-                folder.ChildAdded:Connect(checkModel)
-            end
-        end)
-    end
-
-    trackMap("City", "PiggyHead", true)
-    trackMap("Carnival", "FoxyHead", false)
-    trackMap("Forest", "DogHead", false)
-
-    --------------------------------------------------
-    -- MALL LASERS (100% ORIGINAL - UNTOUCHED)
+    -- MALL LASERS (UNCHANGED)
     --------------------------------------------------
 
     local function handleLasers(container)
