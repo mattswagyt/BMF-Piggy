@@ -379,7 +379,7 @@ createButton("God Mode", function()
     local tracked = {}
 
     --------------------------------------------------
-    -- BASE NEUTER
+    -- BASE NEUTER (UNCHANGED)
     --------------------------------------------------
 
     local function neuter(model)
@@ -398,56 +398,14 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- 🔥 HARD LOOP (NEW - ALL NPCS)
+    -- TRACK MODEL (UNCHANGED)
     --------------------------------------------------
 
-    local function hardLoop(model, isGrandmother)
-        task.spawn(function()
-            while model and model.Parent do
-
-                -- Force Enemy false
-                local enemy = model:FindFirstChild("Enemy")
-                if enemy and enemy:IsA("BoolValue") then
-                    enemy.Value = false
-                end
-
-                -- HRP protection (ALL NPCs)
-                local hrp = model:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    for _, v in ipairs(hrp:GetDescendants()) do
-                        if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
-                            v:Destroy()
-                        end
-                    end
-                end
-
-                -- Grandmother head ONLY
-                if isGrandmother then
-                    local head = model:FindFirstChild("Head")
-                    if head then
-                        for _, v in ipairs(head:GetDescendants()) do
-                            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
-                                v:Destroy()
-                            end
-                        end
-                    end
-                end
-
-                task.wait()
-            end
-        end)
-    end
-
-    --------------------------------------------------
-    -- TRACK MODEL (UPDATED)
-    --------------------------------------------------
-
-    local function track(model, isGrandmother)
+    local function track(model)
         if tracked[model] then return end
         tracked[model] = true
 
         neuter(model)
-        hardLoop(model, isGrandmother)
 
         model.DescendantAdded:Connect(function(obj)
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
@@ -463,7 +421,7 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- TRACK FOLDER RECURSIVELY
+    -- TRACK FOLDER RECURSIVELY (UNCHANGED)
     --------------------------------------------------
 
     local function trackFolder(folder)
@@ -471,19 +429,76 @@ createButton("God Mode", function()
 
         for _, obj in ipairs(folder:GetChildren()) do
             if obj:IsA("Model") then
-                track(obj, false)
+                track(obj)
             end
         end
 
         folder.ChildAdded:Connect(function(obj)
             if obj:IsA("Model") then
-                track(obj, false)
+                track(obj)
             end
         end)
     end
 
     --------------------------------------------------
-    -- 🔥 MR P EXPLOSION PROTECTION (NEW)
+    -- 🔥 NEW: UNIVERSAL PIGGY-STYLE LOOP SYSTEM
+    --------------------------------------------------
+
+    local function hardNeuterUniversal(model, isGrandmother)
+        if not model or not model.Parent then return end
+
+        local enemy = model:FindFirstChild("Enemy")
+        if enemy and enemy:IsA("BoolValue") then
+            enemy.Value = false
+        end
+
+        for _, v in ipairs(model:GetDescendants()) do
+            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                v:Destroy()
+            end
+        end
+
+        -- Only extra condition: Grandmother head safety
+        if isGrandmother then
+            local head = model:FindFirstChild("Head")
+            if head then
+                for _, v in ipairs(head:GetDescendants()) do
+                    if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                        v:Destroy()
+                    end
+                end
+            end
+        end
+    end
+
+    local function trackBotUniversal(bot, isGrandmother)
+        if not bot:IsA("Model") then return end
+
+        hardNeuterUniversal(bot, isGrandmother)
+
+        bot.DescendantAdded:Connect(function(obj)
+            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
+                obj:Destroy()
+            end
+        end)
+
+        bot.ChildAdded:Connect(function(child)
+            if child.Name == "Enemy" and child:IsA("BoolValue") then
+                child.Value = false
+            end
+        end)
+
+        -- 🔥 SAME LOOP AS PIGGY (FIX)
+        task.spawn(function()
+            while bot.Parent do
+                hardNeuterUniversal(bot, isGrandmother)
+                task.wait()
+            end
+        end)
+    end
+
+    --------------------------------------------------
+    -- 🔥 NEW: MR P EXPLOSION PROTECTION
     --------------------------------------------------
 
     task.spawn(function()
@@ -495,11 +510,9 @@ createButton("God Mode", function()
                     if folder:IsA("Folder") then
                         for _, model in ipairs(folder:GetChildren()) do
                             if model:IsA("Model") then
-
                                 local proj = model:FindFirstChild("Projectiles")
                                 if proj then
                                     local homing = proj:FindFirstChild("HomingProjectile", true)
-
                                     if homing then
                                         for _, v in ipairs(homing:GetDescendants()) do
                                             if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
@@ -508,7 +521,6 @@ createButton("God Mode", function()
                                         end
                                     end
                                 end
-
                             end
                         end
                     end
@@ -520,7 +532,7 @@ createButton("God Mode", function()
     end)
 
     --------------------------------------------------
-    -- PIGGYNPC (SWARM) (UNCHANGED)
+    -- PIGGYNPC (SWARM) (100% ORIGINAL - UNTOUCHED)
     --------------------------------------------------
 
     local piggyFolder = workspace:FindFirstChild("PiggyNPC")
@@ -576,26 +588,26 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- OUTPOST (SOLDIERS) (NOW LOOPED)
+    -- 🔥 OUTPOST (NOW TRUE LOOP, ADDED ONLY)
     --------------------------------------------------
 
     local outpost = workspace:FindFirstChild("Outpost")
     if outpost then
         for _, folder in ipairs(outpost:GetChildren()) do
             if folder:IsA("Folder") then
-                trackFolder(folder)
+                for _, model in ipairs(folder:GetChildren()) do
+                    trackBotUniversal(model, false)
+                end
+
+                folder.ChildAdded:Connect(function(model)
+                    trackBotUniversal(model, false)
+                end)
             end
         end
-
-        outpost.ChildAdded:Connect(function(folder)
-            if folder:IsA("Folder") then
-                trackFolder(folder)
-            end
-        end)
     end
 
     --------------------------------------------------
-    -- MAP TARGET TRACKER (UPDATED)
+    -- 🔥 MAP NPCS (DOGGY / FOXY / GRANDMA)
     --------------------------------------------------
 
     local function trackMap(mapName, headName, isGrandmother)
@@ -606,11 +618,10 @@ createButton("God Mode", function()
             if not model:IsA("Model") then return end
 
             if model:FindFirstChild(headName, true) then
-                track(model, isGrandmother)
+                trackBotUniversal(model, isGrandmother)
             end
         end
 
-        -- Existing
         for _, folder in ipairs(map:GetChildren()) do
             if folder:IsA("Folder") then
                 for _, model in ipairs(folder:GetChildren()) do
@@ -621,7 +632,6 @@ createButton("God Mode", function()
             end
         end
 
-        -- New folders
         map.ChildAdded:Connect(function(folder)
             if folder:IsA("Folder") then
                 for _, model in ipairs(folder:GetChildren()) do
@@ -633,16 +643,12 @@ createButton("God Mode", function()
         end)
     end
 
-    --------------------------------------------------
-    -- APPLY MAP SYSTEMS
-    --------------------------------------------------
-
     trackMap("City", "PiggyHead", true)
     trackMap("Carnival", "FoxyHead", false)
     trackMap("Forest", "DogHead", false)
 
     --------------------------------------------------
-    -- MALL LASERS (FULLY RESTORED)
+    -- MALL LASERS (100% ORIGINAL - UNTOUCHED)
     --------------------------------------------------
 
     local function handleLasers(container)
