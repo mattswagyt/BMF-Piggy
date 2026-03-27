@@ -241,6 +241,21 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/d
 end)
 
 --------------------------------------------------
+-- TP into Piggy Room (Safe Spot)
+--------------------------------------------------
+
+createButton("TP into Piggy Room (Safe Spot)", function()
+
+    local character = LocalPlayer.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+    if hrp then
+        hrp.CFrame = CFrame.new(-375, -4, -83)
+    end
+
+end)
+
+--------------------------------------------------
 -- PLAYER ESP (CONSTANT + PIGGY + TRAITOR SUPPORT)
 --------------------------------------------------
 
@@ -837,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (PERFECT CONTROL VERSION)
+-- CONTROL PIGGY BOT (FULL MOVEMENT + ANIMATION AUTO)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -870,7 +885,10 @@ createButton("Control Piggy: OFF", function(button)
         piggyRoot = piggy:FindFirstChild("HumanoidRootPart")
         humanoid = piggy:FindFirstChildOfClass("Humanoid")
 
-        if not piggyRoot or not humanoid then return end
+        if not piggyRoot or not humanoid then
+            controllingPiggy = false
+            return
+        end
 
         --------------------------------------------------
         -- CAMERA TO PIGGY
@@ -878,7 +896,7 @@ createButton("Control Piggy: OFF", function(button)
         workspace.CurrentCamera.CameraSubject = humanoid
 
         --------------------------------------------------
-        -- DISABLE PLAYER
+        -- DISABLE PLAYER MOVEMENT
         --------------------------------------------------
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
@@ -887,67 +905,71 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- AI OVERRIDE (LOCAL)
+        -- AI OVERRIDE (STOP AI)
         --------------------------------------------------
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 
         --------------------------------------------------
-        -- CONTROL LOOP (STRONG OVERRIDE)
+        -- CONTROL LOOP
         --------------------------------------------------
-        controlConnection = RunService.RenderStepped:Connect(function()
-
-            if not piggyRoot then return end
+        controlConnection = RunService.RenderStepped:Connect(function(deltaTime)
+            if not piggyRoot or not humanoid then return end
 
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
+            local isMoving = false
 
-            if UIS:IsKeyDown(Enum.KeyCode.W) then
-                moveDir += cam.CFrame.LookVector
-            end
-            if UIS:IsKeyDown(Enum.KeyCode.S) then
-                moveDir -= cam.CFrame.LookVector
-            end
-            if UIS:IsKeyDown(Enum.KeyCode.A) then
-                moveDir -= cam.CFrame.RightVector
-            end
-            if UIS:IsKeyDown(Enum.KeyCode.D) then
-                moveDir += cam.CFrame.RightVector
-            end
+            -- WASD input
+            if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector isMoving = true end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector isMoving = true end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector isMoving = true end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector isMoving = true end
 
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
             end
 
             --------------------------------------------------
-            -- FORCE POSITION (ANTI-AI / ANTI-SNAPBACK)
+            -- APPLY MOVEMENT
             --------------------------------------------------
             local speed = 18
-            local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * RunService.RenderStepped:Wait()
+            local velocity = Vector3.new(moveDir.X, 0, moveDir.Z) * speed
 
-            -- Lock movement
-            piggyRoot.CFrame = CFrame.new(newPos)
-
-            --------------------------------------------------
-            -- FORCE ROTATION
-            --------------------------------------------------
-            if moveDir.Magnitude > 0 then
-                piggyRoot.CFrame = CFrame.lookAt(
-                    piggyRoot.Position,
-                    piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z)
-                )
+            -- Jump/Fall Detection
+            if humanoid.FloorMaterial ~= Enum.Material.Air then
+                if UIS:IsKeyDown(Enum.KeyCode.Space) then
+                    velocity = velocity + Vector3.new(0, humanoid.JumpPower, 0)
+                end
+            else
+                -- falling, gravity handled by Roblox humanoid
+                velocity = velocity + Vector3.new(0, humanoid.AssemblyLinearVelocity.Y, 0)
             end
 
-            --------------------------------------------------
-            -- ZERO OUT VELOCITY (KILLS AI FORCE)
-            --------------------------------------------------
+            -- Swim handling
+            if humanoid:GetState() == Enum.HumanoidStateType.Swimming then
+                velocity = velocity + Vector3.new(0, 0, 0) -- optional swim modifier
+            end
+
+            -- Force position & prevent AI snapback
+            piggyRoot.CFrame = CFrame.new(piggyRoot.Position + velocity * deltaTime)
+
+            -- Rotate to direction if moving
+            if moveDir.Magnitude > 0 then
+                piggyRoot.CFrame = CFrame.lookAt(piggyRoot.Position, piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z))
+            end
+
+            -- Zero velocity to prevent AI fighting
             piggyRoot.AssemblyLinearVelocity = Vector3.zero
             piggyRoot.AssemblyAngularVelocity = Vector3.zero
 
+            -- HUMANOID ANIMATION AUTOMATIC
+            -- Let Roblox handle all animations naturally: walk, idle, jump, fall, swim, etc.
+            humanoid:Move(Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime, false)
         end)
 
     else
         --------------------------------------------------
-        -- TURN OFF
+        -- TURN OFF CONTROL
         --------------------------------------------------
         button.Text = "Control Piggy: OFF"
         button.TextColor3 = Color3.fromRGB(255,255,255)
