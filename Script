@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (FULL PHYSICS OVERRIDE)
+-- CONTROL PIGGY BOT (TRUE FULL CONTROL FIXED)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -861,7 +861,6 @@ local controlConnection
 local piggy
 local piggyRoot
 local humanoid
-local originalCFrame
 
 createButton("Control Piggy: OFF", function(button)
 
@@ -877,29 +876,20 @@ createButton("Control Piggy: OFF", function(button)
         local piggyFolder = workspace:FindFirstChild("PiggyNPC")
         piggy = piggyFolder and piggyFolder:FindFirstChildWhichIsA("Model")
 
-        if not piggy then
-            warn("Piggy not found")
-            controllingPiggy = false
-            return
-        end
+        if not piggy then return end
 
         piggyRoot = piggy:FindFirstChild("HumanoidRootPart")
         humanoid = piggy:FindFirstChildOfClass("Humanoid")
 
-        if not piggyRoot or not humanoid then
-            controllingPiggy = false
-            return
-        end
-
-        originalCFrame = piggyRoot.CFrame
+        if not piggyRoot or not humanoid then return end
 
         --------------------------------------------------
-        -- CAMERA TO PIGGY
+        -- CAMERA
         --------------------------------------------------
-        workspace.CurrentCamera.CameraSubject = humanoid
+        workspace.CurrentCamera.CameraSubject = piggyRoot
 
         --------------------------------------------------
-        -- DISABLE PLAYER MOVEMENT
+        -- DISABLE PLAYER
         --------------------------------------------------
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
@@ -908,68 +898,85 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- AI OVERRIDE (STOP AI)
+        -- HARD AI + PHYSICS DISABLE
         --------------------------------------------------
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+        humanoid.PlatformStand = true
+
+        for _, v in ipairs(piggy:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = true
+                v.AssemblyLinearVelocity = Vector3.zero
+                v.AssemblyAngularVelocity = Vector3.zero
+            end
+        end
 
         --------------------------------------------------
         -- CONTROL LOOP
         --------------------------------------------------
-        controlConnection = RunService.RenderStepped:Connect(function(deltaTime)
-            if not piggyRoot or not humanoid then return end
+        local yVel = 0
+        local gravity = -120
+
+        controlConnection = RunService.RenderStepped:Connect(function(dt)
+            if not piggyRoot then return end
 
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
-            local isMoving = false
 
-            -- WASD input
-            if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector isMoving = true end
-            if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector isMoving = true end
-            if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector isMoving = true end
-            if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector isMoving = true end
+            -- INPUT
+            if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+
+            moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
 
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
             end
 
             --------------------------------------------------
-            -- HANDLE JUMP
+            -- JUMP + GRAVITY (MANUAL)
             --------------------------------------------------
-            local jumpPower = 50
-            local velocityY = humanoid.AssemblyLinearVelocity.Y
+            local grounded = workspace:Raycast(
+                piggyRoot.Position,
+                Vector3.new(0, -4, 0)
+            )
 
-            if humanoid.FloorMaterial ~= Enum.Material.Air then
+            if grounded then
                 if UIS:IsKeyDown(Enum.KeyCode.Space) then
-                    velocityY = jumpPower
+                    yVel = 50
                 else
-                    velocityY = 0
+                    yVel = 0
                 end
+            else
+                yVel += gravity * dt
             end
 
             --------------------------------------------------
             -- APPLY MOVEMENT
             --------------------------------------------------
-            local speed = 18
-            local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime
-            newPos = Vector3.new(newPos.X, piggyRoot.Position.Y + velocityY * deltaTime, newPos.Z)
+            local speed = 20
 
-            piggyRoot.CFrame = CFrame.lookAt(newPos, newPos + Vector3.new(moveDir.X, 0, moveDir.Z))
+            local newPos =
+                piggyRoot.Position
+                + (moveDir * speed * dt)
+                + Vector3.new(0, yVel * dt, 0)
+
+            local look = (moveDir.Magnitude > 0 and moveDir) or piggyRoot.CFrame.LookVector
+
+            piggyRoot.CFrame = CFrame.lookAt(newPos, newPos + look)
 
             --------------------------------------------------
-            -- ZERO OUT VELOCITY
+            -- HARD LOCK PHYSICS (PREVENT FALLING)
             --------------------------------------------------
             piggyRoot.AssemblyLinearVelocity = Vector3.zero
             piggyRoot.AssemblyAngularVelocity = Vector3.zero
-
-            --------------------------------------------------
-            -- ANIMATION HANDLING (AUTO)
-            --------------------------------------------------
-            humanoid:Move(Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime, false)
         end)
 
     else
         --------------------------------------------------
-        -- TURN OFF CONTROL
+        -- TURN OFF
         --------------------------------------------------
         button.Text = "Control Piggy: OFF"
         button.TextColor3 = Color3.fromRGB(255,255,255)
@@ -980,6 +987,7 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         if humanoid then
+            humanoid.PlatformStand = false
             humanoid:ChangeState(Enum.HumanoidStateType.Running)
         end
 
