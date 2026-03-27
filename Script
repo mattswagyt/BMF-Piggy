@@ -634,24 +634,41 @@ Lighting.ClockTime=14
 end)
 
 --------------------------------------------------
--- KILL PLAYER (BOT ONLY) [ACCORDION STYLE]
+-- KILL PLAYER (BOT ONLY) [FIXED DROPDOWN SYSTEM]
 --------------------------------------------------
 
 local dropdownOpen = false
 local MAX_VISIBLE = 6
 local BUTTON_HEIGHT = 25
-local padding = 5 -- spacing between dropdown and other buttons
 
--- Container for the dropdown
+-- 🔥 WRAPPER (THIS FIXES EVERYTHING)
+local container = Instance.new("Frame")
+container.Parent = MainFrame
+container.Size = UDim2.new(1,0,0,30)
+container.BackgroundTransparency = 1
+
+local containerLayout = Instance.new("UIListLayout")
+containerLayout.Parent = container
+containerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- 🔥 MAIN BUTTON
+local button = Instance.new("TextButton")
+button.Parent = container
+button.Size = UDim2.new(1,0,0,30)
+button.BackgroundColor3 = Color3.fromRGB(40,40,40)
+button.TextColor3 = Color3.fromRGB(255,255,255)
+button.Font = Enum.Font.SourceSans
+button.TextSize = 16
+button.Text = "Kill Player (Bot Only) ▼"
+
+-- 🔥 DROPDOWN CONTAINER
 local dropdownContainer = Instance.new("Frame")
-dropdownContainer.Name = "KillPlayerDropdown"
-dropdownContainer.Parent = MainFrame
+dropdownContainer.Parent = container
 dropdownContainer.Size = UDim2.new(1,0,0,0)
 dropdownContainer.BackgroundTransparency = 1
 dropdownContainer.ClipsDescendants = true
-dropdownContainer.LayoutOrder = 1000 -- ensures it's below the Kill Player button
 
--- Scrolling frame for player buttons
+-- 🔥 SCROLL FRAME
 local scrollFrame = Instance.new("ScrollingFrame")
 scrollFrame.Parent = dropdownContainer
 scrollFrame.Size = UDim2.new(1,0,1,0)
@@ -659,119 +676,99 @@ scrollFrame.CanvasSize = UDim2.new(0,0,0,0)
 scrollFrame.ScrollBarThickness = 4
 scrollFrame.BackgroundTransparency = 1
 
--- UIListLayout for dropdown buttons
 local dropdownLayout = Instance.new("UIListLayout")
 dropdownLayout.Parent = scrollFrame
-dropdownLayout.SortOrder = Enum.SortOrder.LayoutOrder
 dropdownLayout.Padding = UDim.new(0,2)
 
 --------------------------------------------------
--- BOT TELEPORT FUNCTION
+-- BOT FUNCTION
 --------------------------------------------------
 local function killPlayerWithBot(targetPlayer)
     if not targetPlayer then return end
+
     local character = targetPlayer.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
+
     local piggyFolder = workspace:FindFirstChild("PiggyNPC")
     local npc = piggyFolder and piggyFolder:FindFirstChildWhichIsA("Model")
+
     if not (root and npc) then return end
+
     local npcRoot = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Head")
     if not npcRoot then return end
+
     local direction = (root.Position - npcRoot.Position).Unit
     npcRoot.CFrame = CFrame.new(root.Position - direction * 1)
 end
 
 --------------------------------------------------
--- POPULATE PLAYER LIST
+-- POPULATE LIST
 --------------------------------------------------
-local function populatePlayerList()
-    -- Clear old buttons
-    for _, child in ipairs(scrollFrame:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
+local function populate()
+    for _, v in ipairs(scrollFrame:GetChildren()) do
+        if v:IsA("TextButton") then v:Destroy() end
     end
 
     local count = 0
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then
-            local plrButton = Instance.new("TextButton")
-            plrButton.Parent = scrollFrame
-            plrButton.Size = UDim2.new(1,0,0,BUTTON_HEIGHT)
-            plrButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
-            plrButton.TextColor3 = Color3.fromRGB(255,255,255)
-            plrButton.Font = Enum.Font.SourceSans
-            plrButton.TextSize = 14
-            plrButton.Text = plr.Name
+            count += 1
 
-            plrButton.MouseButton1Click:Connect(function()
+            local b = Instance.new("TextButton")
+            b.Parent = scrollFrame
+            b.Size = UDim2.new(1,0,0,BUTTON_HEIGHT)
+            b.BackgroundColor3 = Color3.fromRGB(50,50,50)
+            b.TextColor3 = Color3.fromRGB(255,255,255)
+            b.Text = plr.Name
+            b.Font = Enum.Font.SourceSans
+            b.TextSize = 14
+
+            b.MouseButton1Click:Connect(function()
                 killPlayerWithBot(plr)
             end)
-
-            count += 1
         end
     end
 
-    -- Calculate height
-    local visibleCount = math.min(count, MAX_VISIBLE)
-    local dropdownHeight = visibleCount * BUTTON_HEIGHT
+    local visible = math.min(count, MAX_VISIBLE)
+    local height = visible * BUTTON_HEIGHT
 
-    -- Tween the dropdown size
-    dropdownContainer:TweenSize(
-        UDim2.new(1,0,0,dropdownHeight),
-        "Out",
-        "Quad",
-        0.2,
-        true
-    )
+    dropdownContainer:TweenSize(UDim2.new(1,0,0,height),"Out","Quad",0.2,true)
     scrollFrame.CanvasSize = UDim2.new(0,0,0,count * BUTTON_HEIGHT)
 
-    -- Adjust positions of buttons below automatically
-    task.wait(0.05)
-    MainFrame:TweenSize(
-        UDim2.new(0,300,0,UIListLayout.AbsoluteContentSize.Y + dropdownHeight + padding),
-        "Out",
-        "Quad",
-        0.2,
-        true
-    )
+    -- 🔥 THIS IS THE MAGIC LINE
+    task.wait()
+    container.Size = UDim2.new(1,0,0,30 + height)
 end
 
 --------------------------------------------------
--- CREATE BUTTON
+-- BUTTON CLICK
 --------------------------------------------------
-createButton("Kill Player (Bot Only) ▼", function(button)
+button.MouseButton1Click:Connect(function()
     dropdownOpen = not dropdownOpen
 
     if dropdownOpen then
         button.Text = "Kill Player (Bot Only) ▲"
-        dropdownContainer.Visible = true
-        populatePlayerList()
+        populate()
     else
         button.Text = "Kill Player (Bot Only) ▼"
-        dropdownContainer:TweenSize(UDim2.new(1,0,0,0), "Out", "Quad", 0.2, true)
-        task.wait(0.2)
-        dropdownContainer.Visible = false
 
-        -- Shrink main frame to fit original buttons only
-        MainFrame:TweenSize(
-            UDim2.new(0,300,0,UIListLayout.AbsoluteContentSize.Y),
-            "Out",
-            "Quad",
-            0.2,
-            true
-        )
+        dropdownContainer:TweenSize(UDim2.new(1,0,0,0),"Out","Quad",0.2,true)
+
+        task.wait(0.2)
+        container.Size = UDim2.new(1,0,0,30)
     end
 end)
 
 --------------------------------------------------
--- AUTO REFRESH PLAYER LIST
+-- AUTO REFRESH
 --------------------------------------------------
 Players.PlayerAdded:Connect(function()
-    if dropdownOpen then populatePlayerList() end
+    if dropdownOpen then populate() end
 end)
+
 Players.PlayerRemoving:Connect(function()
-    if dropdownOpen then populatePlayerList() end
+    if dropdownOpen then populate() end
 end)
 
 --------------------------------------------------
