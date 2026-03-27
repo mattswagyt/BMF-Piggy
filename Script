@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (PERFECT CONTROL VERSION)
+-- CONTROL PIGGY BOT (PERFECT CONTROL VERSION + LOCK FACING)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -861,6 +861,7 @@ local controlConnection
 local piggy
 local piggyRoot
 local humanoid
+local lastMoveDir = Vector3.new(0,0,1) -- default forward
 
 createButton("Control Piggy: OFF", function(button)
 
@@ -907,10 +908,9 @@ createButton("Control Piggy: OFF", function(button)
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 
         --------------------------------------------------
-        -- CONTROL LOOP (STRONG OVERRIDE)
+        -- CONTROL LOOP
         --------------------------------------------------
-        controlConnection = RunService.RenderStepped:Connect(function()
-
+        controlConnection = RunService.RenderStepped:Connect(function(dt)
             if not piggyRoot then return end
 
             local cam = workspace.CurrentCamera
@@ -929,35 +929,33 @@ createButton("Control Piggy: OFF", function(button)
                 moveDir += cam.CFrame.RightVector
             end
 
+            moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
+
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
+                lastMoveDir = moveDir -- save last direction
             end
 
             --------------------------------------------------
-            -- FORCE POSITION (ANTI-AI / ANTI-SNAPBACK)
+            -- FORCE POSITION
             --------------------------------------------------
             local speed = 18
-            local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * RunService.RenderStepped:Wait()
-
-            -- Lock movement
+            local newPos = piggyRoot.Position + (moveDir.Magnitude > 0 and moveDir or lastMoveDir) * speed * dt
             piggyRoot.CFrame = CFrame.new(newPos)
 
             --------------------------------------------------
             -- FORCE ROTATION
             --------------------------------------------------
-            if moveDir.Magnitude > 0 then
-                piggyRoot.CFrame = CFrame.lookAt(
-                    piggyRoot.Position,
-                    piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z)
-                )
-            end
+            piggyRoot.CFrame = CFrame.lookAt(
+                piggyRoot.Position,
+                piggyRoot.Position + (moveDir.Magnitude > 0 and moveDir or lastMoveDir)
+            )
 
             --------------------------------------------------
             -- ZERO OUT VELOCITY (KILLS AI FORCE)
             --------------------------------------------------
             piggyRoot.AssemblyLinearVelocity = Vector3.zero
             piggyRoot.AssemblyAngularVelocity = Vector3.zero
-
         end)
 
     else
