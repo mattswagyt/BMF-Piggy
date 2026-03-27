@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (AI OFF + FULL ANIMATION FIX)
+-- CONTROL PIGGY BOT (AI OFF + NATURAL ANIMATIONS)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -861,7 +861,6 @@ local controlConnection
 local piggy
 local piggyRoot
 local humanoid
-local bodyVelocity
 
 createButton("Control Piggy: OFF", function(button)
 
@@ -903,17 +902,16 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- AI OFF & PREP MOVEMENT
+        -- DISABLE AI SCRIPTS
         --------------------------------------------------
-        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-        humanoid.AutoRotate = false
+        for _, scriptObj in ipairs(piggy:GetDescendants()) do
+            if scriptObj:IsA("Script") then
+                scriptObj.Disabled = true
+            end
+        end
 
-        -- create BodyVelocity to control humanoid without Physics glitches
-        bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.MaxForce = Vector3.new(1e5, 0, 1e5)
-        bodyVelocity.Velocity = Vector3.zero
-        bodyVelocity.P = 1e4
-        bodyVelocity.Parent = piggyRoot
+        humanoid.AutoRotate = true
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
 
         --------------------------------------------------
         -- CONTROL LOOP
@@ -939,34 +937,25 @@ createButton("Control Piggy: OFF", function(button)
 
             moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
 
-            local speed = 18
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
 
-                -- BodyVelocity handles movement
-                bodyVelocity.Velocity = moveDir * speed
+                -- Move humanoid naturally (handles animations)
+                humanoid:Move(moveDir, false)
 
                 -- Rotate humanoid
                 piggyRoot.CFrame = CFrame.lookAt(piggyRoot.Position, piggyRoot.Position + moveDir)
 
-                -- Fake MoveDirection for animations
-                humanoid:Move(moveDir, false)
             else
-                -- Stop movement
-                bodyVelocity.Velocity = Vector3.zero
+                -- Idle
                 humanoid:Move(Vector3.zero, false)
 
-                -- Reset Animator to properly trigger idle
+                -- Stop all animation tracks to properly trigger idle
                 if humanoid:FindFirstChild("Animator") then
                     for _, track in ipairs(humanoid.Animator:GetPlayingAnimationTracks()) do
                         track:Stop(0.1)
                     end
                 end
-            end
-
-            -- Ensure AI remains dead
-            if humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
-                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
             end
         end)
 
@@ -982,9 +971,11 @@ createButton("Control Piggy: OFF", function(button)
             controlConnection = nil
         end
 
-        if bodyVelocity then
-            bodyVelocity:Destroy()
-            bodyVelocity = nil
+        -- Re-enable AI scripts
+        for _, scriptObj in ipairs(piggy:GetDescendants()) do
+            if scriptObj:IsA("Script") then
+                scriptObj.Disabled = false
+            end
         end
 
         if humanoid then
