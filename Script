@@ -634,42 +634,36 @@ Lighting.ClockTime=14
 end)
 
 --------------------------------------------------
--- KILL PLAYER (BOT ONLY) [FINAL FIX]
+-- KILL PLAYER (BOT ONLY) [ACCORDION STYLE]
 --------------------------------------------------
 
 local dropdownOpen = false
 local MAX_VISIBLE = 6
 local BUTTON_HEIGHT = 25
+local padding = 5 -- spacing between dropdown and other buttons
 
--- Container for the dropdown (respects UIListLayout)
-local container = Instance.new("Frame")
-container.Parent = MainFrame
-container.Size = UDim2.new(1,0,0,0)
-container.BackgroundTransparency = 1
-container.ClipsDescendants = true
+-- Container for the dropdown
+local dropdownContainer = Instance.new("Frame")
+dropdownContainer.Name = "KillPlayerDropdown"
+dropdownContainer.Parent = MainFrame
+dropdownContainer.Size = UDim2.new(1,0,0,0)
+dropdownContainer.BackgroundTransparency = 1
+dropdownContainer.ClipsDescendants = true
+dropdownContainer.LayoutOrder = 1000 -- ensures it's below the Kill Player button
 
--- Dropdown frame
-local dropdownFrame = Instance.new("Frame")
-dropdownFrame.Parent = container
-dropdownFrame.Size = UDim2.new(1,0,0,0)
-dropdownFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
-dropdownFrame.BorderSizePixel = 0
-dropdownFrame.ClipsDescendants = true
-dropdownFrame.Visible = false
-
--- Scrolling frame
+-- Scrolling frame for player buttons
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Parent = dropdownFrame
+scrollFrame.Parent = dropdownContainer
 scrollFrame.Size = UDim2.new(1,0,1,0)
 scrollFrame.CanvasSize = UDim2.new(0,0,0,0)
 scrollFrame.ScrollBarThickness = 4
 scrollFrame.BackgroundTransparency = 1
 
--- Layout for buttons inside dropdown
-local layout = Instance.new("UIListLayout")
-layout.Parent = scrollFrame
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Padding = UDim.new(0,2)
+-- UIListLayout for dropdown buttons
+local dropdownLayout = Instance.new("UIListLayout")
+dropdownLayout.Parent = scrollFrame
+dropdownLayout.SortOrder = Enum.SortOrder.LayoutOrder
+dropdownLayout.Padding = UDim.new(0,2)
 
 --------------------------------------------------
 -- BOT TELEPORT FUNCTION
@@ -718,18 +712,24 @@ local function populatePlayerList()
         end
     end
 
-    -- Calculate height of dropdown
+    -- Calculate height
     local visibleCount = math.min(count, MAX_VISIBLE)
-    local height = visibleCount * BUTTON_HEIGHT
+    local dropdownHeight = visibleCount * BUTTON_HEIGHT
 
-    -- Resize dropdown frame
-    dropdownFrame:TweenSize(UDim2.new(1,0,0,height), "Out", "Quad", 0.2, true)
+    -- Tween the dropdown size
+    dropdownContainer:TweenSize(
+        UDim2.new(1,0,0,dropdownHeight),
+        "Out",
+        "Quad",
+        0.2,
+        true
+    )
     scrollFrame.CanvasSize = UDim2.new(0,0,0,count * BUTTON_HEIGHT)
 
-    -- Resize main frame dynamically to fit dropdown
-    task.wait(0.05) -- slight delay for tween to settle
+    -- Adjust positions of buttons below automatically
+    task.wait(0.05)
     MainFrame:TweenSize(
-        UDim2.new(0,300,0,UIListLayout.AbsoluteContentSize.Y + height + 10),
+        UDim2.new(0,300,0,UIListLayout.AbsoluteContentSize.Y + dropdownHeight + padding),
         "Out",
         "Quad",
         0.2,
@@ -745,15 +745,15 @@ createButton("Kill Player (Bot Only) ▼", function(button)
 
     if dropdownOpen then
         button.Text = "Kill Player (Bot Only) ▲"
-        dropdownFrame.Visible = true
+        dropdownContainer.Visible = true
         populatePlayerList()
     else
         button.Text = "Kill Player (Bot Only) ▼"
-        dropdownFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quad", 0.2, true)
+        dropdownContainer:TweenSize(UDim2.new(1,0,0,0), "Out", "Quad", 0.2, true)
         task.wait(0.2)
-        dropdownFrame.Visible = false
+        dropdownContainer.Visible = false
 
-        -- Shrink main frame back to original size
+        -- Shrink main frame to fit original buttons only
         MainFrame:TweenSize(
             UDim2.new(0,300,0,UIListLayout.AbsoluteContentSize.Y),
             "Out",
@@ -770,13 +770,9 @@ end)
 Players.PlayerAdded:Connect(function()
     if dropdownOpen then populatePlayerList() end
 end)
-
 Players.PlayerRemoving:Connect(function()
     if dropdownOpen then populatePlayerList() end
 end)
-
--- Make sure the container is parented to the main frame
-container.Parent = MainFrame
 
 --------------------------------------------------
 -- Q TO FLY + NOCLIP (FIXED ANIMATION)
