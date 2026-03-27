@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (FULL CONTROL + ANIM FIX)
+-- CONTROL PIGGY BOT (PERFECT CONTROL + NATURAL ANIMATIONS)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -863,6 +863,7 @@ local piggyRoot
 local humanoid
 
 createButton("Control Piggy: OFF", function(button)
+
     controllingPiggy = not controllingPiggy
 
     if controllingPiggy then
@@ -884,7 +885,10 @@ createButton("Control Piggy: OFF", function(button)
         piggyRoot = piggy:FindFirstChild("HumanoidRootPart")
         humanoid = piggy:FindFirstChildOfClass("Humanoid")
 
-        if not piggyRoot or not humanoid then return end
+        if not piggyRoot or not humanoid then
+            controllingPiggy = false
+            return
+        end
 
         --------------------------------------------------
         -- CAMERA TO PIGGY
@@ -892,7 +896,7 @@ createButton("Control Piggy: OFF", function(button)
         workspace.CurrentCamera.CameraSubject = humanoid
 
         --------------------------------------------------
-        -- DISABLE PLAYER
+        -- DISABLE PLAYER MOVEMENT
         --------------------------------------------------
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
@@ -901,51 +905,55 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- AI OVERRIDE & ANIM SETUP
+        -- AI OVERRIDE (LOCAL)
         --------------------------------------------------
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-        humanoid.AutoRotate = false
 
         --------------------------------------------------
-        -- CONTROL LOOP
+        -- CONTROL LOOP (STRONG OVERRIDE, NATURAL ANIMATIONS)
         --------------------------------------------------
-        controlConnection = RunService.RenderStepped:Connect(function(dt)
+        controlConnection = RunService.RenderStepped:Connect(function(deltaTime)
             if not piggyRoot or not humanoid then return end
 
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
 
+            -- WASD input
             if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
             if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
             if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
             if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
 
-            moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
-
-            local speed = 18
-            if moveDir.Magnitude > 0 then
+            local moving = moveDir.Magnitude > 0
+            if moving then
                 moveDir = moveDir.Unit
-
-                -- Humanoid handles movement naturally (animations included)
-                humanoid:Move(moveDir * speed, false)
-
-                -- Rotate humanoid
-                piggyRoot.CFrame = CFrame.lookAt(piggyRoot.Position, piggyRoot.Position + moveDir)
-
-            else
-                -- Stop movement
-                humanoid:Move(Vector3.zero, false)
             end
 
-            -- Keep AI off
-            if humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
-                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            --------------------------------------------------
+            -- FORCE POSITION (HORIZONTAL ONLY, LET HUMANOID HANDLE Y)
+            --------------------------------------------------
+            local speed = 18
+            local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime
+            piggyRoot.CFrame = CFrame.new(newPos)
+
+            --------------------------------------------------
+            -- FORCE ROTATION
+            --------------------------------------------------
+            if moving then
+                piggyRoot.CFrame = CFrame.lookAt(piggyRoot.Position, piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z))
             end
+
+            --------------------------------------------------
+            -- LET HUMANOID PLAY NATURAL ANIMATIONS
+            --------------------------------------------------
+            -- Important: Do NOT call LoadAnimation; just call Move() to update Humanoid animations naturally
+            humanoid:Move(Vector3.new(moveDir.X, 0, moveDir.Z) * speed, false)
+            -- Vertical physics (jumping, falling) handled automatically
         end)
 
     else
         --------------------------------------------------
-        -- TURN OFF
+        -- TURN OFF CONTROL
         --------------------------------------------------
         button.Text = "Control Piggy: OFF"
         button.TextColor3 = Color3.fromRGB(255,255,255)
@@ -956,7 +964,6 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         if humanoid then
-            humanoid.AutoRotate = true
             humanoid:ChangeState(Enum.HumanoidStateType.Running)
         end
 
