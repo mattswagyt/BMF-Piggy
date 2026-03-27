@@ -854,7 +854,7 @@ createButton("Item ESP", function()
                 originalNames = {}
            end
 
-        end -
+        end
     end) 
 
 end) 
