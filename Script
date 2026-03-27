@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (ANIMATION-FRIENDLY VERSION)
+-- CONTROL PIGGY BOT (ANTI-AI + ANIMATIONS)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -888,7 +888,7 @@ createButton("Control Piggy: OFF", function(button)
         if not piggyRoot or not humanoid then return end
 
         --------------------------------------------------
-        -- CAMERA TO PIGGY
+        -- CAMERA
         --------------------------------------------------
         workspace.CurrentCamera.CameraSubject = humanoid
 
@@ -902,13 +902,21 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- ENSURE NORMAL HUMANOID STATE (FOR ANIMATIONS)
+        -- ANTI-AI SETUP
         --------------------------------------------------
+        humanoid.AutoRotate = false
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        humanoid.AutoRotate = false -- we will control rotation manually
+
+        -- Kill common AI movement methods
+        humanoid:Move(Vector3.zero)
+
+        -- Disable pathfinding movement (VERY IMPORTANT)
+        if humanoid:FindFirstChild("Animator") then
+            -- keep animator (for animations), don't remove
+        end
 
         --------------------------------------------------
-        -- CONTROL LOOP (ANIMATION FRIENDLY)
+        -- CONTROL LOOP
         --------------------------------------------------
         controlConnection = RunService.RenderStepped:Connect(function(dt)
 
@@ -930,29 +938,39 @@ createButton("Control Piggy: OFF", function(button)
                 moveDir += cam.CFrame.RightVector
             end
 
-            -- Flatten Y
             moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
 
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
 
                 --------------------------------------------------
-                -- MOVE USING HUMANOID (THIS ENABLES ANIMATIONS)
+                -- HARD OVERRIDE AI MOVEMENT
                 --------------------------------------------------
                 humanoid:Move(moveDir, false)
 
                 --------------------------------------------------
-                -- ROTATE TOWARD MOVEMENT
+                -- FORCE ROTATION
                 --------------------------------------------------
                 piggyRoot.CFrame = CFrame.lookAt(
                     piggyRoot.Position,
                     piggyRoot.Position + moveDir
                 )
+
+                --------------------------------------------------
+                -- CANCEL AI VELOCITY WITHOUT BREAKING ANIMS
+                --------------------------------------------------
+                piggyRoot.AssemblyLinearVelocity =
+                    Vector3.new(0, piggyRoot.AssemblyLinearVelocity.Y, 0)
+
             else
-                --------------------------------------------------
-                -- STOP MOVEMENT (IDLE ANIMATION)
-                --------------------------------------------------
                 humanoid:Move(Vector3.zero, false)
+            end
+
+            --------------------------------------------------
+            -- CONSTANTLY RESET STATE (PREVENT AI OVERRIDE)
+            --------------------------------------------------
+            if humanoid:GetState() ~= Enum.HumanoidStateType.Running then
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
             end
 
         end)
