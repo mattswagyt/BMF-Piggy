@@ -371,12 +371,13 @@ end)
 
 
 --------------------------------------------------
--- God Mode (TOGGLE - FULL PRESERVED)
+-- God Mode (TOGGLE - FULL PRESERVED + FIX)
 --------------------------------------------------
 
 local godModeEnabled = false
 
 createButton("God Mode: OFF", function(button)
+    if not button then return end  -- fix nil button
 
     godModeEnabled = not godModeEnabled
 
@@ -730,6 +731,7 @@ createButton("God Mode: OFF", function(button)
 
 end)
 
+
 --------------------------------------------------
 -- FULL BRIGHT
 --------------------------------------------------
@@ -971,13 +973,14 @@ createButton("Item ESP", function()
 end)
 
 --------------------------------------------------
--- Speed Hack (TOGGLE)
+-- Speed Hack (TOGGLE + FIX)
 --------------------------------------------------
 
 local speedEnabled = false
 local desiredSpeed = 30
 
 createButton("Speed: OFF", function(button)
+    if not button then return end  -- fix nil button
 
     speedEnabled = not speedEnabled
 
