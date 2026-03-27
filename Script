@@ -371,10 +371,24 @@ end)
 
 
 --------------------------------------------------
-    -- God Mode (FIXED)
+-- God Mode (TOGGLE - FULL PRESERVED)
 --------------------------------------------------
 
-createButton("God Mode", function()
+local godModeEnabled = false
+
+createButton("God Mode: OFF", function(button)
+
+    godModeEnabled = not godModeEnabled
+
+    if godModeEnabled then
+        button.Text = "God Mode: ON"
+        button.TextColor3 = Color3.fromRGB(0,255,0)
+    else
+        button.Text = "God Mode: OFF"
+        button.TextColor3 = Color3.fromRGB(255,0,0)
+    end
+
+    if not godModeEnabled then return end
 
     local tracked = {}
 
@@ -383,6 +397,7 @@ createButton("God Mode", function()
     --------------------------------------------------
 
     local function neuter(model)
+        if not godModeEnabled then return end
         if not model or not model.Parent then return end
 
         local enemy = model:FindFirstChild("Enemy")
@@ -402,18 +417,21 @@ createButton("God Mode", function()
     --------------------------------------------------
 
     local function track(model)
+        if not godModeEnabled then return end
         if tracked[model] then return end
         tracked[model] = true
 
         neuter(model)
 
         model.DescendantAdded:Connect(function(obj)
+            if not godModeEnabled then return end
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
                 obj:Destroy()
             end
         end)
 
         model.ChildAdded:Connect(function(child)
+            if not godModeEnabled then return end
             if child.Name == "Enemy" and child:IsA("BoolValue") then
                 child.Value = false
             end
@@ -425,6 +443,7 @@ createButton("God Mode", function()
     --------------------------------------------------
 
     local function trackFolder(folder)
+        if not godModeEnabled then return end
         if not folder then return end
 
         for _, obj in ipairs(folder:GetChildren()) do
@@ -434,6 +453,7 @@ createButton("God Mode", function()
         end
 
         folder.ChildAdded:Connect(function(obj)
+            if not godModeEnabled then return end
             if obj:IsA("Model") then
                 track(obj)
             end
@@ -441,10 +461,11 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- 🔥 UNIVERSAL PIGGY-STYLE LOOP SYSTEM
+    -- UNIVERSAL SYSTEM (UNCHANGED)
     --------------------------------------------------
 
     local function hardNeuterUniversal(model, isGrandmother)
+        if not godModeEnabled then return end
         if not model or not model.Parent then return end
 
         local enemy = model:FindFirstChild("Enemy")
@@ -471,24 +492,27 @@ createButton("God Mode", function()
     end
 
     local function trackBotUniversal(bot, isGrandmother)
+        if not godModeEnabled then return end
         if not bot:IsA("Model") then return end
 
         hardNeuterUniversal(bot, isGrandmother)
 
         bot.DescendantAdded:Connect(function(obj)
+            if not godModeEnabled then return end
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
                 obj:Destroy()
             end
         end)
 
         bot.ChildAdded:Connect(function(child)
+            if not godModeEnabled then return end
             if child.Name == "Enemy" and child:IsA("BoolValue") then
                 child.Value = false
             end
         end)
 
         task.spawn(function()
-            while bot.Parent do
+            while bot.Parent and godModeEnabled do
                 hardNeuterUniversal(bot, isGrandmother)
                 task.wait()
             end
@@ -496,14 +520,17 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- 🔥 TRUE AUTO MAP DETECTION (FIX)
+    -- AUTO MAP DETECTION (UNCHANGED)
     --------------------------------------------------
 
     local function autoDetectMap(mapName, headName, isGrandmother)
+        if not godModeEnabled then return end
+
         local map = workspace:FindFirstChild(mapName)
         if not map then return end
 
         local function handle(obj)
+            if not godModeEnabled then return end
             if not obj:IsA("Model") then return end
 
             if obj:FindFirstChild("Enemy")
@@ -514,10 +541,12 @@ createButton("God Mode", function()
             end
         end
 
-        -- 🔥 Detect EVERYTHING instantly
-        map.DescendantAdded:Connect(handle)
+        map.DescendantAdded:Connect(function(obj)
+            if godModeEnabled then
+                handle(obj)
+            end
+        end)
 
-        -- Scan existing
         for _, obj in ipairs(map:GetDescendants()) do
             handle(obj)
         end
@@ -528,10 +557,11 @@ createButton("God Mode", function()
     autoDetectMap("Forest", "DogHead", false)
 
     --------------------------------------------------
-    -- 🔥 MR P EXPLOSION PROTECTION (FIXED PROPERLY)
+    -- MR P (UNCHANGED)
     --------------------------------------------------
 
     local function handleMrP(obj)
+        if not godModeEnabled then return end
         if not obj then return end
 
         if obj.Name == "HomingProjectile" then
@@ -545,16 +575,20 @@ createButton("God Mode", function()
 
     local plant = workspace:FindFirstChild("Plant")
     if plant then
-        plant.DescendantAdded:Connect(handleMrP)
+        plant.DescendantAdded:Connect(function(obj)
+            if godModeEnabled then
+                handleMrP(obj)
+            end
+        end)
 
         for _, obj in ipairs(plant:GetDescendants()) do
             handleMrP(obj)
         end
     end
 
-    -- 🔥 Backup loop (anti-recreate)
+    -- Backup loop
     task.spawn(function()
-        while true do
+        while godModeEnabled do
             local plant = workspace:FindFirstChild("Plant")
             if plant then
                 for _, obj in ipairs(plant:GetDescendants()) do
@@ -568,7 +602,7 @@ createButton("God Mode", function()
     end)
 
     --------------------------------------------------
-    -- PIGGYNPC (SWARM) (100% ORIGINAL)
+    -- PIGGYNPC (UNCHANGED)
     --------------------------------------------------
 
     local piggyFolder = workspace:FindFirstChild("PiggyNPC")
@@ -576,6 +610,7 @@ createButton("God Mode", function()
     if piggyFolder then
 
         local function hardNeuter(model)
+            if not godModeEnabled then return end
             if not model or not model.Parent then return end
 
             local enemy = model:FindFirstChild("Enemy")
@@ -591,24 +626,27 @@ createButton("God Mode", function()
         end
 
         local function trackBot(bot)
+            if not godModeEnabled then return end
             if not bot:IsA("Model") then return end
 
             hardNeuter(bot)
 
             bot.DescendantAdded:Connect(function(obj)
+                if not godModeEnabled then return end
                 if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
                     obj:Destroy()
                 end
             end)
 
             bot.ChildAdded:Connect(function(child)
+                if not godModeEnabled then return end
                 if child.Name == "Enemy" and child:IsA("BoolValue") then
                     child.Value = false
                 end
             end)
 
             task.spawn(function()
-                while bot.Parent do
+                while bot.Parent and godModeEnabled do
                     hardNeuter(bot)
                     task.wait()
                 end
@@ -624,7 +662,7 @@ createButton("God Mode", function()
     end
 
     --------------------------------------------------
-    -- OUTPOST (UNCHANGED LOGIC + LOOP ADDED)
+    -- OUTPOST (UNCHANGED)
     --------------------------------------------------
 
     local outpost = workspace:FindFirstChild("Outpost")
@@ -636,7 +674,9 @@ createButton("God Mode", function()
                 end
 
                 folder.ChildAdded:Connect(function(model)
-                    trackBotUniversal(model, false)
+                    if godModeEnabled then
+                        trackBotUniversal(model, false)
+                    end
                 end)
             end
         end
@@ -647,6 +687,8 @@ createButton("God Mode", function()
     --------------------------------------------------
 
     local function handleLasers(container)
+        if not godModeEnabled then return end
+
         for _, v in ipairs(container:GetDescendants()) do
             if v:IsA("Model") and v.Name == "Lasers" then
                 v:Destroy()
@@ -654,6 +696,7 @@ createButton("God Mode", function()
         end
 
         container.DescendantAdded:Connect(function(v)
+            if not godModeEnabled then return end
             if v:IsA("Model") and v.Name == "Lasers" then
                 v:Destroy()
             end
@@ -701,7 +744,7 @@ Lighting.ClockTime=14
 end)
 
 --------------------------------------------------
--- Q TO FLY + NOCLIP (INFINITE YIELD STYLE)
+-- Q TO FLY + NOCLIP (FIXED ANIMATION)
 --------------------------------------------------
 
 createButton("Q to Fly and Noclip", function()
@@ -722,6 +765,17 @@ createButton("Q to Fly and Noclip", function()
     local function startFly()
         local character = player.Character or player.CharacterAdded:Wait()
         local hrp = character:WaitForChild("HumanoidRootPart")
+        local humanoid = character:WaitForChild("Humanoid")
+
+        -- 🔥 STOP FALL ANIMATION
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+        humanoid.PlatformStand = true
+        humanoid.AutoRotate = false
+
+        -- Optional: stop currently playing animations
+        for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+            track:Stop()
+        end
 
         -- Body movers (Infinite Yield style)
         bv = Instance.new("BodyVelocity")
@@ -741,22 +795,22 @@ createButton("Q to Fly and Noclip", function()
             local moveDirection = Vector3.new()
 
             if UIS:IsKeyDown(Enum.KeyCode.W) then
-                moveDirection = moveDirection + camera.CFrame.LookVector
+                moveDirection += camera.CFrame.LookVector
             end
             if UIS:IsKeyDown(Enum.KeyCode.S) then
-                moveDirection = moveDirection - camera.CFrame.LookVector
+                moveDirection -= camera.CFrame.LookVector
             end
             if UIS:IsKeyDown(Enum.KeyCode.A) then
-                moveDirection = moveDirection - camera.CFrame.RightVector
+                moveDirection -= camera.CFrame.RightVector
             end
             if UIS:IsKeyDown(Enum.KeyCode.D) then
-                moveDirection = moveDirection + camera.CFrame.RightVector
+                moveDirection += camera.CFrame.RightVector
             end
             if UIS:IsKeyDown(Enum.KeyCode.Space) then
-                moveDirection = moveDirection + Vector3.new(0,1,0)
+                moveDirection += Vector3.new(0,1,0)
             end
             if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-                moveDirection = moveDirection - Vector3.new(0,1,0)
+                moveDirection -= Vector3.new(0,1,0)
             end
 
             if moveDirection.Magnitude > 0 then
@@ -768,7 +822,7 @@ createButton("Q to Fly and Noclip", function()
             bg.CFrame = camera.CFrame
         end)
 
-        -- Noclip loop (Infinite Yield style)
+        -- Noclip loop
         noclipConnection = RunService.Stepped:Connect(function()
             for _, part in pairs(character:GetDescendants()) do
                 if part:IsA("BasePart") then
@@ -787,6 +841,15 @@ createButton("Q to Fly and Noclip", function()
 
         local character = player.Character
         if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+            -- 🔥 RESTORE NORMAL STATE
+            if humanoid then
+                humanoid.PlatformStand = false
+                humanoid.AutoRotate = true
+                humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
+
             for _, part in pairs(character:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.CanCollide = true
@@ -903,6 +966,57 @@ createButton("Item ESP", function()
 
         end
 
+    end)
+
+end)
+
+--------------------------------------------------
+-- Speed Hack (TOGGLE)
+--------------------------------------------------
+
+local speedEnabled = false
+local desiredSpeed = 30
+
+createButton("Speed: OFF", function(button)
+
+    speedEnabled = not speedEnabled
+
+    if speedEnabled then
+        button.Text = "Speed: ON"
+        button.TextColor3 = Color3.fromRGB(0,255,0)
+    else
+        button.Text = "Speed: OFF"
+        button.TextColor3 = Color3.fromRGB(255,0,0)
+    end
+
+    local function applySpeed(character)
+        if not character then return end
+
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+
+        -- Constant enforcement loop
+        task.spawn(function()
+            while speedEnabled and humanoid.Parent do
+                if humanoid.WalkSpeed ~= desiredSpeed then
+                    humanoid.WalkSpeed = desiredSpeed
+                end
+                task.wait(0.1)
+            end
+        end)
+    end
+
+    -- Apply immediately if character exists
+    if player.Character then
+        applySpeed(player.Character)
+    end
+
+    -- Reapply on respawn
+    player.CharacterAdded:Connect(function(char)
+        if speedEnabled then
+            task.wait(0.2)
+            applySpeed(char)
+        end
     end)
 
 end)
