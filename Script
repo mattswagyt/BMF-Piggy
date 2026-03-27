@@ -837,13 +837,15 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (TOGGLE) (WIP)
+-- CONTROL PIGGY BOT (PERFECT CONTROL VERSION)
 --------------------------------------------------
 
 local controllingPiggy = false
-local piggyConnection
+local controlConnection
+
 local piggy
 local piggyRoot
+local humanoid
 
 createButton("Control Piggy: OFF", function(button)
 
@@ -866,7 +868,7 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         piggyRoot = piggy:FindFirstChild("HumanoidRootPart")
-        local humanoid = piggy:FindFirstChildOfClass("Humanoid")
+        humanoid = piggy:FindFirstChildOfClass("Humanoid")
 
         if not piggyRoot or not humanoid then return end
 
@@ -876,7 +878,7 @@ createButton("Control Piggy: OFF", function(button)
         workspace.CurrentCamera.CameraSubject = humanoid
 
         --------------------------------------------------
-        -- DISABLE PLAYER MOVEMENT
+        -- DISABLE PLAYER
         --------------------------------------------------
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
@@ -885,43 +887,62 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- CONTROL LOOP
+        -- AI OVERRIDE (LOCAL)
         --------------------------------------------------
-        piggyConnection = RunService.RenderStepped:Connect(function()
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 
+        --------------------------------------------------
+        -- CONTROL LOOP (STRONG OVERRIDE)
+        --------------------------------------------------
+        controlConnection = RunService.RenderStepped:Connect(function()
+
+            if not piggyRoot then return end
+
+            local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
 
             if UIS:IsKeyDown(Enum.KeyCode.W) then
-                moveDir += workspace.CurrentCamera.CFrame.LookVector
+                moveDir += cam.CFrame.LookVector
             end
             if UIS:IsKeyDown(Enum.KeyCode.S) then
-                moveDir -= workspace.CurrentCamera.CFrame.LookVector
+                moveDir -= cam.CFrame.LookVector
             end
             if UIS:IsKeyDown(Enum.KeyCode.A) then
-                moveDir -= workspace.CurrentCamera.CFrame.RightVector
+                moveDir -= cam.CFrame.RightVector
             end
             if UIS:IsKeyDown(Enum.KeyCode.D) then
-                moveDir += workspace.CurrentCamera.CFrame.RightVector
+                moveDir += cam.CFrame.RightVector
             end
 
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
             end
 
-            -- Apply movement
-            piggyRoot.AssemblyLinearVelocity = Vector3.new(
-                moveDir.X * 16,
-                piggyRoot.AssemblyLinearVelocity.Y,
-                moveDir.Z * 16
-            )
+            --------------------------------------------------
+            -- FORCE POSITION (ANTI-AI / ANTI-SNAPBACK)
+            --------------------------------------------------
+            local speed = 18
+            local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * RunService.RenderStepped:Wait()
 
-            -- Face movement direction
+            -- Lock movement
+            piggyRoot.CFrame = CFrame.new(newPos)
+
+            --------------------------------------------------
+            -- FORCE ROTATION
+            --------------------------------------------------
             if moveDir.Magnitude > 0 then
                 piggyRoot.CFrame = CFrame.lookAt(
                     piggyRoot.Position,
                     piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z)
                 )
             end
+
+            --------------------------------------------------
+            -- ZERO OUT VELOCITY (KILLS AI FORCE)
+            --------------------------------------------------
+            piggyRoot.AssemblyLinearVelocity = Vector3.zero
+            piggyRoot.AssemblyAngularVelocity = Vector3.zero
+
         end)
 
     else
@@ -931,12 +952,15 @@ createButton("Control Piggy: OFF", function(button)
         button.Text = "Control Piggy: OFF"
         button.TextColor3 = Color3.fromRGB(255,255,255)
 
-        if piggyConnection then
-            piggyConnection:Disconnect()
-            piggyConnection = nil
+        if controlConnection then
+            controlConnection:Disconnect()
+            controlConnection = nil
         end
 
-        -- Restore camera
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end
+
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
             workspace.CurrentCamera.CameraSubject = char.Humanoid
