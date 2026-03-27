@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (PERFECT CONTROL + NATURAL ANIMATIONS)
+-- CONTROL PIGGY BOT (CLIENT-ONLY, NATURAL ANIMATIONS)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -893,7 +893,7 @@ createButton("Control Piggy: OFF", function(button)
         workspace.CurrentCamera.CameraSubject = humanoid
 
         --------------------------------------------------
-        -- DISABLE PLAYER
+        -- DISABLE PLAYER MOVEMENT
         --------------------------------------------------
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
@@ -902,16 +902,16 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- AI OVERRIDE (LOCAL) -- Keep humanoid active for animations
+        -- AI OVERRIDE (LOCAL)
         --------------------------------------------------
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 
         --------------------------------------------------
-        -- CONTROL LOOP (STRONG OVERRIDE)
+        -- CONTROL LOOP (CLIENT-ONLY)
         --------------------------------------------------
         controlConnection = RunService.RenderStepped:Connect(function(deltaTime)
 
-            if not piggyRoot then return end
+            if not piggyRoot or not humanoid then return end
 
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
@@ -927,17 +927,18 @@ createButton("Control Piggy: OFF", function(button)
             end
 
             --------------------------------------------------
-            -- APPLY HORIZONTAL MOVEMENT (keep Y free for gravity)
+            -- HORIZONTAL MOVEMENT ONLY (LET HUMANOID HANDLE Y)
             --------------------------------------------------
             local speed = 18
             local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime
             piggyRoot.CFrame = CFrame.new(newPos, newPos + Vector3.new(moveDir.X, 0, moveDir.Z))
 
             --------------------------------------------------
-            -- LET HUMANOID HANDLE ANIMATIONS NATURALLY
+            -- HUMANOID NATURAL ANIMATIONS
             --------------------------------------------------
             humanoid:Move(Vector3.new(moveDir.X, 0, moveDir.Z) * speed, false)
-            -- Do NOT zero velocity or override Y, gravity will handle jump/fall
+            -- Do NOT modify AssemblyLinearVelocity or AssemblyAngularVelocity
+            -- Gravity and jumping handled automatically
 
         end)
 
