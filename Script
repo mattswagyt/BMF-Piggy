@@ -642,18 +642,30 @@ local dropdownOpen = false
 -- Container (respects UIListLayout)
 local container = Instance.new("Frame")
 container.Parent = MainFrame
-container.Size = UDim2.new(1,0,0,30)
+container.Size = UDim2.new(1,0,0,0)
 container.BackgroundTransparency = 1
 
 -- Dropdown frame (inside container)
 local dropdownFrame = Instance.new("Frame")
 dropdownFrame.Parent = container
-dropdownFrame.Position = UDim2.new(0,0,1,0)
 dropdownFrame.Size = UDim2.new(1,0,0,0)
 dropdownFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
 dropdownFrame.BorderSizePixel = 0
 dropdownFrame.ClipsDescendants = true
 dropdownFrame.Visible = false
+
+-- SCROLLING FRAME
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Parent = dropdownFrame
+scrollFrame.Size = UDim2.new(1,0,1,0)
+scrollFrame.CanvasSize = UDim2.new(0,0,0,0)
+scrollFrame.ScrollBarThickness = 4
+scrollFrame.BackgroundTransparency = 1
+
+-- Layout for player buttons
+local layout = Instance.new("UIListLayout")
+layout.Parent = scrollFrame
+layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 --------------------------------------------------
 -- BOT TELEPORT LOGIC
@@ -684,7 +696,7 @@ end
 local function populatePlayerList()
 
     -- Clear old buttons
-    for _, child in ipairs(dropdownFrame:GetChildren()) do
+    for _, child in ipairs(scrollFrame:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
         end
@@ -696,9 +708,8 @@ local function populatePlayerList()
         if plr ~= LocalPlayer then
 
             local plrButton = Instance.new("TextButton")
-            plrButton.Parent = dropdownFrame
+            plrButton.Parent = scrollFrame
             plrButton.Size = UDim2.new(1,0,0,25)
-            plrButton.Position = UDim2.new(0,0,0,count*25)
             plrButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
             plrButton.TextColor3 = Color3.fromRGB(255,255,255)
             plrButton.Font = Enum.Font.SourceSans
@@ -713,15 +724,23 @@ local function populatePlayerList()
         end
     end
 
+    -- Max 6 visible players
+    local visibleCount = math.min(count, 6)
+
+    local height = visibleCount * 25
+
     -- Resize container + dropdown
-    container.Size = UDim2.new(1,0,0,30 + (count * 25))
+    container.Size = UDim2.new(1,0,0,height)
     dropdownFrame:TweenSize(
-        UDim2.new(1,0,0,count * 25),
+        UDim2.new(1,0,0,height),
         "Out",
         "Quad",
         0.2,
         true
     )
+
+    -- Enable scrolling if needed
+    scrollFrame.CanvasSize = UDim2.new(0,0,0,count * 25)
 end
 
 --------------------------------------------------
@@ -742,7 +761,7 @@ killButton = createButton("Kill Player (Bot Only) ▼", function(button)
         button.Text = "Kill Player (Bot Only) ▼"
         dropdownFrame.Visible = false
 
-        container.Size = UDim2.new(1,0,0,30)
+        container.Size = UDim2.new(1,0,0,0)
         dropdownFrame:TweenSize(
             UDim2.new(1,0,0,0),
             "Out",
