@@ -369,104 +369,27 @@ end)
 
 
 --------------------------------------------------
--- God Mode (TOGGLE - FULL PRESERVED + FIX)
+-- God Mode (TOGGLE - UNIFIED + NO STACKED CONNECTIONS)
 --------------------------------------------------
 
 local godModeEnabled = false
+local tracked = {} -- central registry for all models
 
 createButton("God Mode: OFF", function(button)
-    if not button then return end  -- fix nil button
+    if not button then return end
 
     godModeEnabled = not godModeEnabled
 
-    if godModeEnabled then
-        button.Text = "God Mode: ON"
-        button.TextColor3 = Color3.fromRGB(0,255,0)
-    else
-        button.Text = "God Mode: OFF"
-        button.TextColor3 = Color3.fromRGB(255,0,0)
-    end
+    button.Text = godModeEnabled and "God Mode: ON" or "God Mode: OFF"
+    button.TextColor3 = godModeEnabled and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
 
     if not godModeEnabled then return end
 
-    local tracked = {}
-
     --------------------------------------------------
-    -- BASE NEUTER (UNCHANGED)
+    -- CENTRAL NEUTER FUNCTION
     --------------------------------------------------
-
-    local function neuter(model)
-        if not godModeEnabled then return end
+    local function neuter(model, isGrandmother)
         if not model or not model.Parent then return end
-
-        local enemy = model:FindFirstChild("Enemy")
-        if enemy and enemy:IsA("BoolValue") then
-            enemy.Value = false
-        end
-
-        for _, v in ipairs(model:GetDescendants()) do
-            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
-                v:Destroy()
-            end
-        end
-    end
-
-    --------------------------------------------------
-    -- TRACK MODEL (UNCHANGED)
-    --------------------------------------------------
-
-    local function track(model)
-        if not godModeEnabled then return end
-        if tracked[model] then return end
-        tracked[model] = true
-
-        neuter(model)
-
-        model.DescendantAdded:Connect(function(obj)
-            if not godModeEnabled then return end
-            if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
-                obj:Destroy()
-            end
-        end)
-
-        model.ChildAdded:Connect(function(child)
-            if not godModeEnabled then return end
-            if child.Name == "Enemy" and child:IsA("BoolValue") then
-                child.Value = false
-            end
-        end)
-    end
-
-    --------------------------------------------------
-    -- TRACK FOLDER RECURSIVELY (UNCHANGED)
-    --------------------------------------------------
-
-    local function trackFolder(folder)
-        if not godModeEnabled then return end
-        if not folder then return end
-
-        for _, obj in ipairs(folder:GetChildren()) do
-            if obj:IsA("Model") then
-                track(obj)
-            end
-        end
-
-        folder.ChildAdded:Connect(function(obj)
-            if not godModeEnabled then return end
-            if obj:IsA("Model") then
-                track(obj)
-            end
-        end)
-    end
-
-    --------------------------------------------------
-    -- UNIVERSAL SYSTEM (UNCHANGED)
-    --------------------------------------------------
-
-    local function hardNeuterUniversal(model, isGrandmother)
-        if not godModeEnabled then return end
-        if not model or not model.Parent then return end
-
         local enemy = model:FindFirstChild("Enemy")
         if enemy and enemy:IsA("BoolValue") then
             enemy.Value = false
@@ -490,65 +413,80 @@ createButton("God Mode: OFF", function(button)
         end
     end
 
-    local function trackBotUniversal(bot, isGrandmother)
+    --------------------------------------------------
+    -- SINGLE TRACK FUNCTION
+    --------------------------------------------------
+    local function track(model, isGrandmother)
         if not godModeEnabled then return end
-        if not bot:IsA("Model") then return end
+        if tracked[model] then return end
+        tracked[model] = true
 
-        hardNeuterUniversal(bot, isGrandmother)
+        neuter(model, isGrandmother)
 
-        bot.DescendantAdded:Connect(function(obj)
+        -- unified descendant tracking
+        model.DescendantAdded:Connect(function(obj)
             if not godModeEnabled then return end
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
                 obj:Destroy()
             end
         end)
 
-        bot.ChildAdded:Connect(function(child)
+        -- unified child tracking
+        model.ChildAdded:Connect(function(child)
             if not godModeEnabled then return end
             if child.Name == "Enemy" and child:IsA("BoolValue") then
                 child.Value = false
             end
         end)
 
+        -- continuous enforcement
         task.spawn(function()
-            while bot.Parent and godModeEnabled do
-                hardNeuterUniversal(bot, isGrandmother)
+            while model.Parent and godModeEnabled do
+                neuter(model, isGrandmother)
                 task.wait()
             end
         end)
     end
 
     --------------------------------------------------
-    -- AUTO MAP DETECTION (UNCHANGED)
+    -- UNIFIED FOLDER TRACKER
     --------------------------------------------------
+    local function trackFolder(folder, isGrandmother)
+        if not folder then return end
+        for _, obj in ipairs(folder:GetChildren()) do
+            if obj:IsA("Model") then
+                track(obj, isGrandmother)
+            end
+        end
 
+        folder.ChildAdded:Connect(function(obj)
+            if obj:IsA("Model") then
+                track(obj, isGrandmother)
+            end
+        end)
+    end
+
+    --------------------------------------------------
+    -- AUTOMATIC MAP DETECTION
+    --------------------------------------------------
     local function autoDetectMap(mapName, headName, isGrandmother)
-        if not godModeEnabled then return end
-
         local map = workspace:FindFirstChild(mapName)
         if not map then return end
 
         local function handle(obj)
-            if not godModeEnabled then return end
             if not obj:IsA("Model") then return end
-
-            if obj:FindFirstChild("Enemy")
-            or obj:FindFirstChild("HumanoidRootPart")
-            or obj:FindFirstChild(headName, true) then
-
-                trackBotUniversal(obj, isGrandmother)
+            if obj:FindFirstChild("Enemy") or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild(headName, true) then
+                track(obj, isGrandmother)
             end
         end
 
-        map.DescendantAdded:Connect(function(obj)
-            if godModeEnabled then
-                handle(obj)
-            end
-        end)
-
+        -- handle existing
         for _, obj in ipairs(map:GetDescendants()) do
             handle(obj)
         end
+
+        -- handle new
+        map.DescendantAdded:Connect(handle)
     end
 
     autoDetectMap("City", "PiggyHead", true)
@@ -556,154 +494,45 @@ createButton("God Mode: OFF", function(button)
     autoDetectMap("Forest", "DogHead", false)
 
     --------------------------------------------------
-    -- MR P (UNCHANGED)
+    -- MR P PROJECTILES
     --------------------------------------------------
-
     local function handleMrP(obj)
-        if not godModeEnabled then return end
-        if not obj then return end
-
-        if obj.Name == "HomingProjectile" then
-            for _, v in ipairs(obj:GetDescendants()) do
-                if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
-                    v:Destroy()
-                end
+        if obj.Name ~= "HomingProjectile" then return end
+        for _, v in ipairs(obj:GetDescendants()) do
+            if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                v:Destroy()
             end
         end
     end
 
-    local plant = workspace:FindFirstChild("Plant")
-    if plant then
-        plant.DescendantAdded:Connect(function(obj)
-            if godModeEnabled then
-                handleMrP(obj)
-            end
-        end)
-
+    local function trackPlant()
+        local plant = workspace:FindFirstChild("Plant")
+        if not plant then return end
         for _, obj in ipairs(plant:GetDescendants()) do
             handleMrP(obj)
         end
+        plant.DescendantAdded:Connect(handleMrP)
     end
 
-    -- Backup loop
-    task.spawn(function()
-        while godModeEnabled do
-            local plant = workspace:FindFirstChild("Plant")
-            if plant then
-                for _, obj in ipairs(plant:GetDescendants()) do
-                    if obj.Name == "HomingProjectile" then
-                        handleMrP(obj)
-                    end
-                end
-            end
-            task.wait()
-        end
-    end)
+    trackPlant()
 
     --------------------------------------------------
-    -- PIGGYNPC (UNCHANGED)
+    -- MALL LASERS
     --------------------------------------------------
-
-    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
-
-    if piggyFolder then
-
-        local function hardNeuter(model)
-            if not godModeEnabled then return end
-            if not model or not model.Parent then return end
-
-            local enemy = model:FindFirstChild("Enemy")
-            if enemy and enemy:IsA("BoolValue") then
-                enemy.Value = false
-            end
-
-            for _, v in ipairs(model:GetDescendants()) do
-                if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
-                    v:Destroy()
-                end
-            end
-        end
-
-        local function trackBot(bot)
-            if not godModeEnabled then return end
-            if not bot:IsA("Model") then return end
-
-            hardNeuter(bot)
-
-            bot.DescendantAdded:Connect(function(obj)
-                if not godModeEnabled then return end
-                if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
-                    obj:Destroy()
-                end
-            end)
-
-            bot.ChildAdded:Connect(function(child)
-                if not godModeEnabled then return end
-                if child.Name == "Enemy" and child:IsA("BoolValue") then
-                    child.Value = false
-                end
-            end)
-
-            task.spawn(function()
-                while bot.Parent and godModeEnabled do
-                    hardNeuter(bot)
-                    task.wait()
-                end
-            end)
-        end
-
-        for _, bot in ipairs(piggyFolder:GetChildren()) do
-            trackBot(bot)
-        end
-
-        piggyFolder.ChildAdded:Connect(trackBot)
-
-    end
-
-    --------------------------------------------------
-    -- OUTPOST (UNCHANGED)
-    --------------------------------------------------
-
-    local outpost = workspace:FindFirstChild("Outpost")
-    if outpost then
-        for _, folder in ipairs(outpost:GetChildren()) do
-            if folder:IsA("Folder") then
-                for _, model in ipairs(folder:GetChildren()) do
-                    trackBotUniversal(model, false)
-                end
-
-                folder.ChildAdded:Connect(function(model)
-                    if godModeEnabled then
-                        trackBotUniversal(model, false)
-                    end
-                end)
-            end
-        end
-    end
-
-    --------------------------------------------------
-    -- MALL LASERS (UNCHANGED)
-    --------------------------------------------------
-
     local function handleLasers(container)
-        if not godModeEnabled then return end
-
         for _, v in ipairs(container:GetDescendants()) do
             if v:IsA("Model") and v.Name == "Lasers" then
                 v:Destroy()
             end
         end
-
         container.DescendantAdded:Connect(function(v)
-            if not godModeEnabled then return end
             if v:IsA("Model") and v.Name == "Lasers" then
                 v:Destroy()
             end
         end)
     end
 
-    local mall = workspace:FindFirstChild("Mall")
-    if mall then
+    local function trackMall()
         local loaded = workspace:FindFirstChild("LoadedMap")
         if loaded and loaded:FindFirstChild("Part1") then
             local jail = loaded.Part1:FindFirstChild("JailbreakEvent")
@@ -713,68 +542,81 @@ createButton("God Mode: OFF", function(button)
         end
     end
 
+    if workspace:FindFirstChild("Mall") then
+        trackMall()
+    end
     workspace.ChildAdded:Connect(function(child)
         if child.Name == "Mall" then
             task.wait(0.2)
-
-            local loaded = workspace:FindFirstChild("LoadedMap")
-            if loaded and loaded:FindFirstChild("Part1") then
-                local jail = loaded.Part1:FindFirstChild("JailbreakEvent")
-                if jail then
-                    handleLasers(jail)
-                end
-            end
+            trackMall()
         end
     end)
 
     --------------------------------------------------
-    -- GLOBAL ENFORCEMENT LOOP (FIX)
+    -- PIGGYNPC
     --------------------------------------------------
+    local function trackPiggyNPC()
+        local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+        if not piggyFolder then return end
+        for _, bot in ipairs(piggyFolder:GetChildren()) do
+            if bot:IsA("Model") then
+                track(bot, false)
+            end
+        end
+        piggyFolder.ChildAdded:Connect(function(bot)
+            if bot:IsA("Model") then
+                track(bot, false)
+            end
+        end)
+    end
 
+    trackPiggyNPC()
+
+    --------------------------------------------------
+    -- OUTPOST TRACKING
+    --------------------------------------------------
+    local function trackOutpost()
+        local outpost = workspace:FindFirstChild("Outpost")
+        if not outpost then return end
+        for _, folder in ipairs(outpost:GetChildren()) do
+            if folder:IsA("Folder") then
+                for _, model in ipairs(folder:GetChildren()) do
+                    track(model, false)
+                end
+                folder.ChildAdded:Connect(function(model)
+                    track(model, false)
+                end)
+            end
+        end
+    end
+
+    trackOutpost()
+
+    --------------------------------------------------
+    -- GLOBAL ENFORCEMENT LOOP
+    --------------------------------------------------
     task.spawn(function()
         while godModeEnabled do
-
-            -- Re-run universal map detection
+            -- Re-run map detection (safe, no duplicate connections)
             autoDetectMap("City", "PiggyHead", true)
             autoDetectMap("Carnival", "FoxyHead", false)
             autoDetectMap("Forest", "DogHead", false)
 
-            -- Re-run Mr P handling
-            local plant = workspace:FindFirstChild("Plant")
-            if plant then
-                for _, obj in ipairs(plant:GetDescendants()) do
-                    if obj.Name == "HomingProjectile" then
-                        handleMrP(obj)
-                    end
-                end
-            end
+            -- Mr P
+            trackPlant()
 
-            -- Re-run Mall lasers
-            local mall = workspace:FindFirstChild("Mall")
-            if mall then
-                local loaded = workspace:FindFirstChild("LoadedMap")
-                if loaded and loaded:FindFirstChild("Part1") then
-                    local jail = loaded.Part1:FindFirstChild("JailbreakEvent")
-                    if jail then
-                        handleLasers(jail)
-                    end
-                end
-            end
+            -- PiggyNPC
+            trackPiggyNPC()
 
-            -- Re-run PiggyNPC safety (extra enforcement)
-            local piggyFolder = workspace:FindFirstChild("PiggyNPC")
-            if piggyFolder then
-                for _, bot in ipairs(piggyFolder:GetChildren()) do
-                    if bot:IsA("Model") then
-                        trackBotUniversal(bot, false)
-                    end
-                end
-            end
+            -- Mall lasers
+            trackMall()
 
-            task.wait(0.2) -- small delay for performance
+            -- Outpost
+            trackOutpost()
+
+            task.wait(0.5) -- slightly less frequent, less CPU
         end
     end)
-
 end)
 
 
