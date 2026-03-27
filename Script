@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (AI OFF + NATURAL ANIMATIONS)
+-- CONTROL PIGGY BOT (TRUE FINAL FIX)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -861,6 +861,10 @@ local controlConnection
 local piggy
 local piggyRoot
 local humanoid
+local animator
+
+local walkTrack
+local idleTrack
 
 createButton("Control Piggy: OFF", function(button)
 
@@ -884,8 +888,9 @@ createButton("Control Piggy: OFF", function(button)
 
         piggyRoot = piggy:FindFirstChild("HumanoidRootPart")
         humanoid = piggy:FindFirstChildOfClass("Humanoid")
+        animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
 
-        if not piggyRoot or not humanoid then return end
+        if not piggyRoot or not humanoid or not animator then return end
 
         --------------------------------------------------
         -- CAMERA
@@ -902,22 +907,36 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- DISABLE AI SCRIPTS
+        -- 🔥 HARD KILL AI
         --------------------------------------------------
-        for _, scriptObj in ipairs(piggy:GetDescendants()) do
-            if scriptObj:IsA("Script") then
-                scriptObj.Disabled = true
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+        humanoid.AutoRotate = false
+
+        --------------------------------------------------
+        -- LOAD ANIMATIONS (FROM EXISTING)
+        --------------------------------------------------
+        local animateScript = piggy:FindFirstChild("Animate")
+
+        if animateScript then
+            -- try to grab default anim IDs
+            local walkAnim = animateScript:FindFirstChild("walk") and animateScript.walk:FindFirstChildOfClass("Animation")
+            local idleAnim = animateScript:FindFirstChild("idle") and animateScript.idle:FindFirstChildOfClass("Animation")
+
+            if walkAnim then
+                walkTrack = animator:LoadAnimation(walkAnim)
+            end
+
+            if idleAnim then
+                idleTrack = animator:LoadAnimation(idleAnim)
             end
         end
-
-        humanoid.AutoRotate = true
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
 
         --------------------------------------------------
         -- CONTROL LOOP
         --------------------------------------------------
         controlConnection = RunService.RenderStepped:Connect(function(dt)
-            if not piggyRoot or not humanoid then return end
+
+            if not piggyRoot then return end
 
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
@@ -937,26 +956,49 @@ createButton("Control Piggy: OFF", function(button)
 
             moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
 
+            local speed = 18
+
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
 
-                -- Move humanoid naturally (handles animations)
-                humanoid:Move(moveDir, false)
+                --------------------------------------------------
+                -- MOVE
+                --------------------------------------------------
+                piggyRoot.CFrame += moveDir * speed * dt
 
-                -- Rotate humanoid
-                piggyRoot.CFrame = CFrame.lookAt(piggyRoot.Position, piggyRoot.Position + moveDir)
+                piggyRoot.CFrame = CFrame.lookAt(
+                    piggyRoot.Position,
+                    piggyRoot.Position + moveDir
+                )
+
+                --------------------------------------------------
+                -- PLAY WALK ANIMATION
+                --------------------------------------------------
+                if walkTrack and not walkTrack.IsPlaying then
+                    if idleTrack then idleTrack:Stop(0.2) end
+                    walkTrack:Play(0.2)
+                end
 
             else
-                -- Idle
-                humanoid:Move(Vector3.zero, false)
-
-                -- Stop all animation tracks to properly trigger idle
-                if humanoid:FindFirstChild("Animator") then
-                    for _, track in ipairs(humanoid.Animator:GetPlayingAnimationTracks()) do
-                        track:Stop(0.1)
-                    end
+                --------------------------------------------------
+                -- PLAY IDLE ANIMATION
+                --------------------------------------------------
+                if idleTrack and not idleTrack.IsPlaying then
+                    if walkTrack then walkTrack:Stop(0.2) end
+                    idleTrack:Play(0.2)
                 end
             end
+
+            --------------------------------------------------
+            -- KEEP AI DEAD
+            --------------------------------------------------
+            if humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
+                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            end
+
+            piggyRoot.AssemblyLinearVelocity = Vector3.zero
+            piggyRoot.AssemblyAngularVelocity = Vector3.zero
+
         end)
 
     else
@@ -971,16 +1013,12 @@ createButton("Control Piggy: OFF", function(button)
             controlConnection = nil
         end
 
-        -- Re-enable AI scripts
-        for _, scriptObj in ipairs(piggy:GetDescendants()) do
-            if scriptObj:IsA("Script") then
-                scriptObj.Disabled = false
-            end
-        end
+        if walkTrack then walkTrack:Stop() end
+        if idleTrack then idleTrack:Stop() end
 
         if humanoid then
-            humanoid.AutoRotate = true
             humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            humanoid.AutoRotate = true
         end
 
         local char = LocalPlayer.Character
