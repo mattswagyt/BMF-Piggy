@@ -634,7 +634,7 @@ Lighting.ClockTime=14
 end)
 
 --------------------------------------------------
--- KILL PLAYER (BOT ONLY) - FADE + AUTO-UPDATE
+-- KILL PLAYER (BOT ONLY) - FADE + AUTO-UPDATE + BLUR + ESC
 --------------------------------------------------
 local function createKillPlayerPromptButton()
     local button = Instance.new("TextButton")
@@ -647,6 +647,7 @@ local function createKillPlayerPromptButton()
     button.Text = "Kill Player (Bot Only)"
 
     local promptFrame
+    local blurFrame
     local promptOpen = false
 
     local function teleportBotToPlayer(targetPlayer)
@@ -663,8 +664,9 @@ local function createKillPlayerPromptButton()
     end
 
     local function createPrompt()
-        -- Destroy existing frame if open
+        -- Destroy existing frames
         if promptFrame then promptFrame:Destroy() end
+        if blurFrame then blurFrame:Destroy() end
 
         local playersList = {}
         for _, plr in ipairs(Players:GetPlayers()) do
@@ -688,16 +690,33 @@ local function createKillPlayerPromptButton()
             table.insert(promptPlayers, playersList[i])
         end
 
-        -- Create Frame
+        -- Dark blur background
+        blurFrame = Instance.new("Frame")
+        blurFrame.Size = UDim2.new(1,0,1,0)
+        blurFrame.Position = UDim2.new(0,0,0,0)
+        blurFrame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+        blurFrame.BackgroundTransparency = 0.6
+        blurFrame.ZIndex = 1
+        blurFrame.Parent = ScreenGui
+
+        -- Close prompt if clicked outside
+        blurFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                button.MouseButton1Click:Wait()
+            end
+        end)
+
+        -- Create prompt frame above everything
         promptFrame = Instance.new("Frame")
         promptFrame.Size = UDim2.new(0,200,0,#promptPlayers*30)
-        promptFrame.Position = UDim2.new(0.5,-100,0.5,-(#promptPlayers*30)/2)
+        promptFrame.Position = UDim2.new(0, MainFrame.AbsolutePosition.X + MainFrame.AbsoluteSize.X + 10, 0, MainFrame.AbsolutePosition.Y)
         promptFrame.BackgroundColor3 = Color3.fromRGB(50,50,50)
         promptFrame.BorderSizePixel = 0
-        promptFrame.Parent = PlayerGui
-        promptFrame.BackgroundTransparency = 1 -- start transparent
+        promptFrame.ZIndex = 2
+        promptFrame.Parent = ScreenGui
+        promptFrame.BackgroundTransparency = 1 -- fade in
 
-        -- Fade in
+        -- Fade in animation
         task.spawn(function()
             for i = 1, 10 do
                 task.wait(0.02)
@@ -708,25 +727,52 @@ local function createKillPlayerPromptButton()
         for i, plr in ipairs(promptPlayers) do
             local plrButton = Instance.new("TextButton")
             plrButton.Size = UDim2.new(1,0,0,30)
-            plrButton.Position = UDim2.new(0,0,(i-1)/#promptPlayers,0)
+            plrButton.Position = UDim2.new(0,0,0,(i-1)*30)
             plrButton.BackgroundColor3 = Color3.fromRGB(70,70,70)
             plrButton.TextColor3 = Color3.fromRGB(255,255,255)
             plrButton.Font = Enum.Font.SourceSans
             plrButton.TextSize = 14
             plrButton.Text = plr.Name
             plrButton.Parent = promptFrame
+            plrButton.ZIndex = 3
 
             plrButton.MouseButton1Click:Connect(function()
                 teleportBotToPlayer(plr)
                 -- Fade out
                 for i = 1,10 do
                     task.wait(0.02)
-                    promptFrame.BackgroundTransparency = i*0.1
+                    if promptFrame then
+                        promptFrame.BackgroundTransparency = i*0.1
+                    end
+                    if blurFrame then
+                        blurFrame.BackgroundTransparency = 0.6 + i*0.04
+                    end
                 end
-                promptFrame:Destroy()
+                if promptFrame then promptFrame:Destroy() end
+                if blurFrame then blurFrame:Destroy() end
                 promptOpen = false
             end)
         end
+
+        -- Cancel with ESC
+        local escConnection
+        escConnection = UIS.InputBegan:Connect(function(input, processed)
+            if not processed and input.KeyCode == Enum.KeyCode.Escape and promptOpen then
+                for i = 1,10 do
+                    task.wait(0.02)
+                    if promptFrame then
+                        promptFrame.BackgroundTransparency = i*0.1
+                    end
+                    if blurFrame then
+                        blurFrame.BackgroundTransparency = 0.6 + i*0.04
+                    end
+                end
+                if promptFrame then promptFrame:Destroy() end
+                if blurFrame then blurFrame:Destroy() end
+                promptOpen = false
+                escConnection:Disconnect()
+            end
+        end)
 
         promptOpen = true
     end
@@ -740,8 +786,12 @@ local function createKillPlayerPromptButton()
                 if promptFrame then
                     promptFrame.BackgroundTransparency = i*0.1
                 end
+                if blurFrame then
+                    blurFrame.BackgroundTransparency = 0.6 + i*0.04
+                end
             end
             if promptFrame then promptFrame:Destroy() end
+            if blurFrame then blurFrame:Destroy() end
             promptOpen = false
         else
             createPrompt()
@@ -750,15 +800,10 @@ local function createKillPlayerPromptButton()
 
     -- Auto-update prompt if open
     Players.PlayerAdded:Connect(function()
-        if promptOpen then
-            createPrompt()
-        end
+        if promptOpen then createPrompt() end
     end)
-
     Players.PlayerRemoving:Connect(function()
-        if promptOpen then
-            createPrompt()
-        end
+        if promptOpen then createPrompt() end
     end)
 end
 
