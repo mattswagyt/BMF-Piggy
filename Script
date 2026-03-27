@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (FULL NATURAL ANIMATIONS)
+-- CONTROL PIGGY BOT (FULL OVERRIDE / NO RAGDOLL)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -886,6 +886,11 @@ createButton("Control Piggy: OFF", function(button)
             return
         end
 
+        -- TAKE NETWORK OWNERSHIP (important for client control)
+        if piggyRoot:IsA("BasePart") then
+            piggyRoot:SetNetworkOwner(LocalPlayer)
+        end
+
         -- CAMERA TO PIGGY
         workspace.CurrentCamera.CameraSubject = humanoid
 
@@ -896,8 +901,9 @@ createButton("Control Piggy: OFF", function(button)
             char.Humanoid.JumpPower = 0
         end
 
-        -- AI OVERRIDE
+        -- STOP AI MOVEMENT
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+        humanoid.PlatformStand = false
 
         -- CONTROL LOOP
         controlConnection = RunService.RenderStepped:Connect(function(deltaTime)
@@ -905,15 +911,15 @@ createButton("Control Piggy: OFF", function(button)
 
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
-            local isMoving = false
 
             -- WASD input
-            if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector isMoving = true end
-            if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector isMoving = true end
-            if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector isMoving = true end
-            if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector isMoving = true end
+            if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
 
-            if moveDir.Magnitude > 0 then
+            local isMoving = moveDir.Magnitude > 0
+            if isMoving then
                 moveDir = moveDir.Unit
                 lastMoveDir = moveDir
             end
@@ -925,21 +931,21 @@ createButton("Control Piggy: OFF", function(button)
                 velocityY = jumpPower
             end
 
-            -- APPLY MOVEMENT
+            -- MOVE ROOT PART DIRECTLY (prevents ragdoll)
             local speed = 18
             local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime
             newPos = Vector3.new(newPos.X, piggyRoot.Position.Y + velocityY * deltaTime, newPos.Z)
             piggyRoot.CFrame = CFrame.new(newPos)
 
-            -- ROTATION ONLY WHEN MOVING
-            if moveDir.Magnitude > 0 then
+            -- ROTATE ONLY WHEN MOVING
+            if isMoving then
                 piggyRoot.CFrame = CFrame.lookAt(
                     piggyRoot.Position,
                     piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z)
                 )
             end
 
-            -- ZERO OUT AI VELOCITY
+            -- ZERO OUT VELOCITY (prevent AI snapback)
             piggyRoot.AssemblyLinearVelocity = Vector3.zero
             piggyRoot.AssemblyAngularVelocity = Vector3.zero
 
@@ -959,6 +965,7 @@ createButton("Control Piggy: OFF", function(button)
 
         if humanoid then
             humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            humanoid.PlatformStand = false
         end
 
         local char = LocalPlayer.Character
