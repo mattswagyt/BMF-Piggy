@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (FULL MOVEMENT + ANIMATION AUTO)
+-- CONTROL PIGGY BOT (FULL PHYSICS OVERRIDE)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -861,6 +861,7 @@ local controlConnection
 local piggy
 local piggyRoot
 local humanoid
+local originalCFrame
 
 createButton("Control Piggy: OFF", function(button)
 
@@ -889,6 +890,8 @@ createButton("Control Piggy: OFF", function(button)
             controllingPiggy = false
             return
         end
+
+        originalCFrame = piggyRoot.CFrame
 
         --------------------------------------------------
         -- CAMERA TO PIGGY
@@ -930,40 +933,37 @@ createButton("Control Piggy: OFF", function(button)
             end
 
             --------------------------------------------------
+            -- HANDLE JUMP
+            --------------------------------------------------
+            local jumpPower = 50
+            local velocityY = humanoid.AssemblyLinearVelocity.Y
+
+            if humanoid.FloorMaterial ~= Enum.Material.Air then
+                if UIS:IsKeyDown(Enum.KeyCode.Space) then
+                    velocityY = jumpPower
+                else
+                    velocityY = 0
+                end
+            end
+
+            --------------------------------------------------
             -- APPLY MOVEMENT
             --------------------------------------------------
             local speed = 18
-            local velocity = Vector3.new(moveDir.X, 0, moveDir.Z) * speed
+            local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime
+            newPos = Vector3.new(newPos.X, piggyRoot.Position.Y + velocityY * deltaTime, newPos.Z)
 
-            -- Jump/Fall Detection
-            if humanoid.FloorMaterial ~= Enum.Material.Air then
-                if UIS:IsKeyDown(Enum.KeyCode.Space) then
-                    velocity = velocity + Vector3.new(0, humanoid.JumpPower, 0)
-                end
-            else
-                -- falling, gravity handled by Roblox humanoid
-                velocity = velocity + Vector3.new(0, humanoid.AssemblyLinearVelocity.Y, 0)
-            end
+            piggyRoot.CFrame = CFrame.lookAt(newPos, newPos + Vector3.new(moveDir.X, 0, moveDir.Z))
 
-            -- Swim handling
-            if humanoid:GetState() == Enum.HumanoidStateType.Swimming then
-                velocity = velocity + Vector3.new(0, 0, 0) -- optional swim modifier
-            end
-
-            -- Force position & prevent AI snapback
-            piggyRoot.CFrame = CFrame.new(piggyRoot.Position + velocity * deltaTime)
-
-            -- Rotate to direction if moving
-            if moveDir.Magnitude > 0 then
-                piggyRoot.CFrame = CFrame.lookAt(piggyRoot.Position, piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z))
-            end
-
-            -- Zero velocity to prevent AI fighting
+            --------------------------------------------------
+            -- ZERO OUT VELOCITY
+            --------------------------------------------------
             piggyRoot.AssemblyLinearVelocity = Vector3.zero
             piggyRoot.AssemblyAngularVelocity = Vector3.zero
 
-            -- HUMANOID ANIMATION AUTOMATIC
-            -- Let Roblox handle all animations naturally: walk, idle, jump, fall, swim, etc.
+            --------------------------------------------------
+            -- ANIMATION HANDLING (AUTO)
+            --------------------------------------------------
             humanoid:Move(Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime, false)
         end)
 
