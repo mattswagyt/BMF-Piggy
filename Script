@@ -1000,5 +1000,3 @@ end)
 Players.PlayerRemoving:Connect(function()
     if dropdownOpen then populatePlayerList() end
 end)
-
-end)
