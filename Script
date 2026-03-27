@@ -911,3 +911,94 @@ createButton("Speed: OFF", function(button)
     end)
 
 end)
+
+--------------------------------------------------
+-- KILL PLAYER (BOT ONLY)
+--------------------------------------------------
+
+local dropdownOpen = false
+local dropdownFrame = Instance.new("Frame")
+
+dropdownFrame.Parent = MainFrame
+dropdownFrame.Size = UDim2.new(1,0,0,0)
+dropdownFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+dropdownFrame.BorderSizePixel = 0
+dropdownFrame.ClipsDescendants = true
+dropdownFrame.Visible = true
+
+local function killPlayerWithBot(targetPlayer)
+    local character = targetPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+    local npc = piggyFolder and piggyFolder:FindFirstChildWhichIsA("Model")
+
+    if root and npc then
+        local npcRoot = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Head")
+        if npcRoot then
+            local direction = (root.Position - npcRoot.Position).Unit
+            npcRoot.CFrame = CFrame.new(root.Position - direction * 1) -- 1 stud in front
+        end
+    end
+end
+
+local function populatePlayerList()
+
+    -- Clear old buttons
+    for _,child in ipairs(dropdownFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    local count = 0
+
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+
+            local plrButton = Instance.new("TextButton")
+            plrButton.Parent = dropdownFrame
+            plrButton.Size = UDim2.new(1,0,0,25)
+            plrButton.Position = UDim2.new(0,0,0,count*25)
+            plrButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+            plrButton.TextColor3 = Color3.fromRGB(255,255,255)
+            plrButton.Font = Enum.Font.SourceSans
+            plrButton.TextSize = 14
+            plrButton.Text = plr.Name
+
+            plrButton.MouseButton1Click:Connect(function()
+                killPlayerWithBot(plr)
+            end)
+
+            count = count + 1
+        end
+    end
+
+    dropdownFrame:TweenSize(UDim2.new(1,0,0,count*25),"Out","Quad",0.2,true)
+end
+
+-- MAIN BUTTON
+createButton("Kill Player (Bot Only) ▼", function(button)
+
+    dropdownOpen = not dropdownOpen
+
+    if dropdownOpen then
+        button.Text = "Kill Player (Bot Only) ▲"
+        populatePlayerList()
+    else
+        button.Text = "Kill Player (Bot Only) ▼"
+        dropdownFrame:TweenSize(UDim2.new(1,0,0,0),"Out","Quad",0.2,true)
+    end
+
+end)
+
+-- Auto refresh if players change
+Players.PlayerAdded:Connect(function()
+    if dropdownOpen then populatePlayerList() end
+end)
+
+Players.PlayerRemoving:Connect(function()
+    if dropdownOpen then populatePlayerList() end
+end)
+
+end)
