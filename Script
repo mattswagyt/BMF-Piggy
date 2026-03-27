@@ -727,6 +727,54 @@ createButton("God Mode: OFF", function(button)
         end
     end)
 
+    --------------------------------------------------
+    -- GLOBAL ENFORCEMENT LOOP (FIX)
+    --------------------------------------------------
+
+    task.spawn(function()
+        while godModeEnabled do
+
+            -- Re-run universal map detection
+            autoDetectMap("City", "PiggyHead", true)
+            autoDetectMap("Carnival", "FoxyHead", false)
+            autoDetectMap("Forest", "DogHead", false)
+
+            -- Re-run Mr P handling
+            local plant = workspace:FindFirstChild("Plant")
+            if plant then
+                for _, obj in ipairs(plant:GetDescendants()) do
+                    if obj.Name == "HomingProjectile" then
+                        handleMrP(obj)
+                    end
+                end
+            end
+
+            -- Re-run Mall lasers
+            local mall = workspace:FindFirstChild("Mall")
+            if mall then
+                local loaded = workspace:FindFirstChild("LoadedMap")
+                if loaded and loaded:FindFirstChild("Part1") then
+                    local jail = loaded.Part1:FindFirstChild("JailbreakEvent")
+                    if jail then
+                        handleLasers(jail)
+                    end
+                end
+            end
+
+            -- Re-run PiggyNPC safety (extra enforcement)
+            local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+            if piggyFolder then
+                for _, bot in ipairs(piggyFolder:GetChildren()) do
+                    if bot:IsA("Model") then
+                        trackBotUniversal(bot, false)
+                    end
+                end
+            end
+
+            task.wait(0.2) -- small delay for performance
+        end
+    end)
+
 end)
 
 
@@ -978,7 +1026,7 @@ local speedEnabled = false
 local desiredSpeed = 30
 
 createButton("Speed: OFF", function(button)
-    if not button then return end  -- fix nil button
+    if not button then return end
 
     speedEnabled = not speedEnabled
 
@@ -1008,12 +1056,12 @@ createButton("Speed: OFF", function(button)
     end
 
     -- Apply immediately if character exists
-    if player.Character then
-        applySpeed(player.Character)
+    if LocalPlayer.Character then
+        applySpeed(LocalPlayer.Character)
     end
 
     -- Reapply on respawn
-    player.CharacterAdded:Connect(function(char)
+    LocalPlayer.CharacterAdded:Connect(function(char)
         if speedEnabled then
             task.wait(0.2)
             applySpeed(char)
