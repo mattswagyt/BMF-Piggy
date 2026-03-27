@@ -162,28 +162,26 @@ end
 -- BUTTON FUNCTION
 --------------------------------------------------
 
-local function createButton(name,callback)
+local function createButton(name, callback)
+    local Button = Instance.new("TextButton")
 
-    local Button=Instance.new("TextButton")
-
-    Button.Parent=MainFrame
-    Button.Text=name
-    Button.Size=UDim2.new(1,0,0,30)
-    Button.BackgroundColor3=Color3.fromRGB(40,40,40)
-    Button.TextColor3=Color3.fromRGB(255,255,255)
-    Button.Font=Enum.Font.SourceSans
-    Button.TextSize=16
+    Button.Parent = MainFrame
+    Button.Text = name
+    Button.Size = UDim2.new(1,0,0,30)
+    Button.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    Button.TextColor3 = Color3.fromRGB(255,255,255)
+    Button.Font = Enum.Font.SourceSans
+    Button.TextSize = 16
 
     Button.MouseButton1Click:Connect(function()
-
-        local success,err=pcall(callback)
+        local success, err = pcall(function()
+            callback(Button) -- <--- pass the button instance here
+        end)
 
         if not success then
-            ErrorLog.Text="Error Log: "..err
+            ErrorLog.Text = "Error Log: "..err
         end
-
     end)
-
 end
 
 --------------------------------------------------
