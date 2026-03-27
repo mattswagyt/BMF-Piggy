@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (TRUE AI DISABLE + ANIMATIONS)
+-- CONTROL PIGGY BOT (AI OFF + FULL ANIMATION FIX)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -861,6 +861,7 @@ local controlConnection
 local piggy
 local piggyRoot
 local humanoid
+local bodyVelocity
 
 createButton("Control Piggy: OFF", function(button)
 
@@ -902,16 +903,22 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- 🔥 HARD DISABLE AI
+        -- AI OFF & PREP MOVEMENT
         --------------------------------------------------
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
         humanoid.AutoRotate = false
+
+        -- create BodyVelocity to control humanoid without Physics glitches
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.MaxForce = Vector3.new(1e5, 0, 1e5)
+        bodyVelocity.Velocity = Vector3.zero
+        bodyVelocity.P = 1e4
+        bodyVelocity.Parent = piggyRoot
 
         --------------------------------------------------
         -- CONTROL LOOP
         --------------------------------------------------
         controlConnection = RunService.RenderStepped:Connect(function(dt)
-
             if not piggyRoot or not humanoid then return end
 
             local cam = workspace.CurrentCamera
@@ -932,45 +939,35 @@ createButton("Control Piggy: OFF", function(button)
 
             moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
 
+            local speed = 18
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
 
-                --------------------------------------------------
-                -- MOVE (PHYSICS BASED)
-                --------------------------------------------------
-                local speed = 18
-                piggyRoot.CFrame += moveDir * speed * dt
+                -- BodyVelocity handles movement
+                bodyVelocity.Velocity = moveDir * speed
 
-                --------------------------------------------------
-                -- ROTATE
-                --------------------------------------------------
-                piggyRoot.CFrame = CFrame.lookAt(
-                    piggyRoot.Position,
-                    piggyRoot.Position + moveDir
-                )
+                -- Rotate humanoid
+                piggyRoot.CFrame = CFrame.lookAt(piggyRoot.Position, piggyRoot.Position + moveDir)
 
-                --------------------------------------------------
-                -- 🔥 FAKE MOVE DIRECTION FOR ANIMATIONS
-                --------------------------------------------------
+                -- Fake MoveDirection for animations
                 humanoid:Move(moveDir, false)
-
             else
+                -- Stop movement
+                bodyVelocity.Velocity = Vector3.zero
                 humanoid:Move(Vector3.zero, false)
+
+                -- Reset Animator to properly trigger idle
+                if humanoid:FindFirstChild("Animator") then
+                    for _, track in ipairs(humanoid.Animator:GetPlayingAnimationTracks()) do
+                        track:Stop(0.1)
+                    end
+                end
             end
 
-            --------------------------------------------------
-            -- KEEP AI DEAD
-            --------------------------------------------------
+            -- Ensure AI remains dead
             if humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
                 humanoid:ChangeState(Enum.HumanoidStateType.Physics)
             end
-
-            --------------------------------------------------
-            -- KILL ANY AI VELOCITY
-            --------------------------------------------------
-            piggyRoot.AssemblyLinearVelocity = Vector3.zero
-            piggyRoot.AssemblyAngularVelocity = Vector3.zero
-
         end)
 
     else
@@ -985,9 +982,14 @@ createButton("Control Piggy: OFF", function(button)
             controlConnection = nil
         end
 
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+            bodyVelocity = nil
+        end
+
         if humanoid then
-            humanoid:ChangeState(Enum.HumanoidStateType.Running)
             humanoid.AutoRotate = true
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
         end
 
         local char = LocalPlayer.Character
