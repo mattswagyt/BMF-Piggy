@@ -858,60 +858,6 @@ createButton("Item ESP", function()
 
     end)
 
-end)
-
---------------------------------------------------
--- Speed Hack (TOGGLE + FIX)
---------------------------------------------------
-
-local speedEnabled = false
-local desiredSpeed = 30
-
-createButton("Speed: OFF", function(button)
-    if not button then return end
-
-    speedEnabled = not speedEnabled
-
-    if speedEnabled then
-        button.Text = "Speed: ON"
-        button.TextColor3 = Color3.fromRGB(0,255,0)
-    else
-        button.Text = "Speed: OFF"
-        button.TextColor3 = Color3.fromRGB(255,0,0)
-    end
-
-    local function applySpeed(character)
-        if not character then return end
-
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if not humanoid then return end
-
-        -- Constant enforcement loop
-        task.spawn(function()
-            while speedEnabled and humanoid.Parent do
-                if humanoid.WalkSpeed ~= desiredSpeed then
-                    humanoid.WalkSpeed = desiredSpeed
-                end
-                task.wait(0.1)
-            end
-        end)
-    end
-
-    -- Apply immediately if character exists
-    if LocalPlayer.Character then
-        applySpeed(LocalPlayer.Character)
-    end
-
-    -- Reapply on respawn
-    LocalPlayer.CharacterAdded:Connect(function(char)
-        if speedEnabled then
-            task.wait(0.2)
-            applySpeed(char)
-        end
-    end)
-
-end)
-
 --------------------------------------------------
 -- KILL PLAYER (BOT ONLY)
 --------------------------------------------------
@@ -999,4 +945,56 @@ end)
 
 Players.PlayerRemoving:Connect(function()
     if dropdownOpen then populatePlayerList() end
+end)
+
+--------------------------------------------------
+-- Speed Hack (TOGGLE + FIX)
+--------------------------------------------------
+
+local speedEnabled = false
+local desiredSpeed = 30
+
+createButton("Speed: OFF", function(button)
+    if not button then return end
+
+    speedEnabled = not speedEnabled
+
+    if speedEnabled then
+        button.Text = "Speed: ON"
+        button.TextColor3 = Color3.fromRGB(0,255,0)
+    else
+        button.Text = "Speed: OFF"
+        button.TextColor3 = Color3.fromRGB(255,0,0)
+    end
+
+    local function applySpeed(character)
+        if not character then return end
+
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+
+        -- Constant enforcement loop
+        task.spawn(function()
+            while speedEnabled and humanoid.Parent do
+                if humanoid.WalkSpeed ~= desiredSpeed then
+                    humanoid.WalkSpeed = desiredSpeed
+                end
+                task.wait(0.1)
+            end
+        end)
+    end
+
+    -- Apply immediately if character exists
+    if LocalPlayer.Character then
+        applySpeed(LocalPlayer.Character)
+    end
+
+    -- Reapply on respawn
+    LocalPlayer.CharacterAdded:Connect(function(char)
+        if speedEnabled then
+            task.wait(0.2)
+            applySpeed(char)
+        end
+    end)
+
 end)
