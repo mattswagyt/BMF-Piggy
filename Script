@@ -810,3 +810,99 @@ createButton("Q to Fly and Noclip", function()
     end)
 
 end)
+
+--------------------------------------------------
+-- Items GUI Button
+--------------------------------------------------
+
+createButton("Items GUI",function()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/mattswagyt/piggy-items-gui/refs/heads/main/Script'))()
+end)
+
+--------------------------------------------------
+-- ITEM ESP (SMART + AUTO DETECT)
+--------------------------------------------------
+
+createButton("Item ESP", function()
+
+    local trackedFolder = nil
+    local originalNames = {} -- [instance] = original name
+
+    --------------------------------------------------
+    -- Get item color safely
+    --------------------------------------------------
+    local function getItemColor(item)
+        if item:IsA("BasePart") or item:IsA("UnionOperation") then
+            return item.Color
+        end
+        return Color3.fromRGB(255,255,255)
+    end
+
+    --------------------------------------------------
+    -- Apply ESP
+    --------------------------------------------------
+    local function apply(item)
+
+        if not originalNames[item] then return end
+
+        local color = getItemColor(item)
+        local name = originalNames[item]
+
+        highlightTarget(item, color)
+        createTracer(item, color)
+        createNameTag(item, name, color)
+
+    end
+
+    --------------------------------------------------
+    -- Scan for ORIGINAL ItemFolder
+    --------------------------------------------------
+    task.spawn(function()
+
+        while true do
+            task.wait(1)
+
+            -- Step 1: Find original ItemFolder BEFORE rename
+            if not trackedFolder then
+                for _, obj in ipairs(workspace:GetChildren()) do
+                    if obj:IsA("Folder") and obj.Name == "ItemFolder" then
+                        trackedFolder = obj
+
+                        -- Cache ORIGINAL item names
+                        for _, item in ipairs(obj:GetChildren()) do
+                            if item:IsA("BasePart") or item:IsA("UnionOperation") then
+                                originalNames[item] = item.Name
+                            end
+                        end
+
+                        -- Track new items BEFORE rename
+                        obj.ChildAdded:Connect(function(item)
+                            task.wait()
+                            if item:IsA("BasePart") or item:IsA("UnionOperation") then
+                                originalNames[item] = item.Name
+                            end
+                        end)
+                    end
+                end
+            end
+
+            -- Step 2: If folder exists (even renamed), apply ESP
+            if trackedFolder and trackedFolder.Parent then
+
+                for _, item in ipairs(trackedFolder:GetChildren()) do
+                    if (item:IsA("BasePart") or item:IsA("UnionOperation")) then
+                        apply(item)
+                    end
+                end
+
+            else
+                -- Reset for next round
+                trackedFolder = nil
+                originalNames = {}
+            end
+
+        end
+
+    end)
+
+end)
