@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (CLIENT-ONLY, NATURAL ANIMATIONS)
+-- CONTROL PIGGY BOT (ANIMATION-FRIENDLY VERSION)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -893,7 +893,7 @@ createButton("Control Piggy: OFF", function(button)
         workspace.CurrentCamera.CameraSubject = humanoid
 
         --------------------------------------------------
-        -- DISABLE PLAYER MOVEMENT
+        -- DISABLE PLAYER
         --------------------------------------------------
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("Humanoid") then
@@ -902,49 +902,64 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- AI OVERRIDE (LOCAL)
+        -- ENSURE NORMAL HUMANOID STATE (FOR ANIMATIONS)
         --------------------------------------------------
-        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        humanoid.AutoRotate = false -- we will control rotation manually
 
         --------------------------------------------------
-        -- CONTROL LOOP (CLIENT-ONLY)
+        -- CONTROL LOOP (ANIMATION FRIENDLY)
         --------------------------------------------------
-        controlConnection = RunService.RenderStepped:Connect(function(deltaTime)
+        controlConnection = RunService.RenderStepped:Connect(function(dt)
 
             if not piggyRoot or not humanoid then return end
 
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
 
-            -- WASD input
-            if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
-            if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+            if UIS:IsKeyDown(Enum.KeyCode.W) then
+                moveDir += cam.CFrame.LookVector
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then
+                moveDir -= cam.CFrame.LookVector
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then
+                moveDir -= cam.CFrame.RightVector
+            end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then
+                moveDir += cam.CFrame.RightVector
+            end
+
+            -- Flatten Y
+            moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
 
             if moveDir.Magnitude > 0 then
                 moveDir = moveDir.Unit
+
+                --------------------------------------------------
+                -- MOVE USING HUMANOID (THIS ENABLES ANIMATIONS)
+                --------------------------------------------------
+                humanoid:Move(moveDir, false)
+
+                --------------------------------------------------
+                -- ROTATE TOWARD MOVEMENT
+                --------------------------------------------------
+                piggyRoot.CFrame = CFrame.lookAt(
+                    piggyRoot.Position,
+                    piggyRoot.Position + moveDir
+                )
+            else
+                --------------------------------------------------
+                -- STOP MOVEMENT (IDLE ANIMATION)
+                --------------------------------------------------
+                humanoid:Move(Vector3.zero, false)
             end
-
-            --------------------------------------------------
-            -- HORIZONTAL MOVEMENT ONLY (LET HUMANOID HANDLE Y)
-            --------------------------------------------------
-            local speed = 18
-            local newPos = piggyRoot.Position + Vector3.new(moveDir.X, 0, moveDir.Z) * speed * deltaTime
-            piggyRoot.CFrame = CFrame.new(newPos, newPos + Vector3.new(moveDir.X, 0, moveDir.Z))
-
-            --------------------------------------------------
-            -- HUMANOID NATURAL ANIMATIONS
-            --------------------------------------------------
-            humanoid:Move(Vector3.new(moveDir.X, 0, moveDir.Z) * speed, false)
-            -- Do NOT modify AssemblyLinearVelocity or AssemblyAngularVelocity
-            -- Gravity and jumping handled automatically
 
         end)
 
     else
         --------------------------------------------------
-        -- TURN OFF CONTROL
+        -- TURN OFF
         --------------------------------------------------
         button.Text = "Control Piggy: OFF"
         button.TextColor3 = Color3.fromRGB(255,255,255)
@@ -955,7 +970,7 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         if humanoid then
-            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            humanoid.AutoRotate = true
         end
 
         local char = LocalPlayer.Character
