@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (ANTI-AI + ANIMATIONS)
+-- CONTROL PIGGY BOT (TRUE AI DISABLE + ANIMATIONS)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -902,18 +902,10 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- ANTI-AI SETUP
+        -- 🔥 HARD DISABLE AI
         --------------------------------------------------
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
         humanoid.AutoRotate = false
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-
-        -- Kill common AI movement methods
-        humanoid:Move(Vector3.zero)
-
-        -- Disable pathfinding movement (VERY IMPORTANT)
-        if humanoid:FindFirstChild("Animator") then
-            -- keep animator (for animations), don't remove
-        end
 
         --------------------------------------------------
         -- CONTROL LOOP
@@ -944,12 +936,13 @@ createButton("Control Piggy: OFF", function(button)
                 moveDir = moveDir.Unit
 
                 --------------------------------------------------
-                -- HARD OVERRIDE AI MOVEMENT
+                -- MOVE (PHYSICS BASED)
                 --------------------------------------------------
-                humanoid:Move(moveDir, false)
+                local speed = 18
+                piggyRoot.CFrame += moveDir * speed * dt
 
                 --------------------------------------------------
-                -- FORCE ROTATION
+                -- ROTATE
                 --------------------------------------------------
                 piggyRoot.CFrame = CFrame.lookAt(
                     piggyRoot.Position,
@@ -957,21 +950,26 @@ createButton("Control Piggy: OFF", function(button)
                 )
 
                 --------------------------------------------------
-                -- CANCEL AI VELOCITY WITHOUT BREAKING ANIMS
+                -- 🔥 FAKE MOVE DIRECTION FOR ANIMATIONS
                 --------------------------------------------------
-                piggyRoot.AssemblyLinearVelocity =
-                    Vector3.new(0, piggyRoot.AssemblyLinearVelocity.Y, 0)
+                humanoid:Move(moveDir, false)
 
             else
                 humanoid:Move(Vector3.zero, false)
             end
 
             --------------------------------------------------
-            -- CONSTANTLY RESET STATE (PREVENT AI OVERRIDE)
+            -- KEEP AI DEAD
             --------------------------------------------------
-            if humanoid:GetState() ~= Enum.HumanoidStateType.Running then
-                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            if humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
+                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
             end
+
+            --------------------------------------------------
+            -- KILL ANY AI VELOCITY
+            --------------------------------------------------
+            piggyRoot.AssemblyLinearVelocity = Vector3.zero
+            piggyRoot.AssemblyAngularVelocity = Vector3.zero
 
         end)
 
@@ -988,6 +986,7 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
             humanoid.AutoRotate = true
         end
 
