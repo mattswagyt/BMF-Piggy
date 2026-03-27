@@ -852,11 +852,12 @@ createButton("Item ESP", function()
                 -- Reset for next round
                 trackedFolder = nil
                 originalNames = {}
-            end
+           end
 
-        end
+        end -
+    end) 
 
-    end)
+end) 
 
 --------------------------------------------------
 -- KILL PLAYER (BOT ONLY)
