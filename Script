@@ -852,7 +852,7 @@ end
 createKillPlayerPromptButton()
 
 --------------------------------------------------
--- CONTROL PIGGY BOT (FULL FIXED VERSION)
+-- CONTROL PIGGY BOT (AI FULLY DISABLED FIX)
 --------------------------------------------------
 
 local controllingPiggy = false
@@ -905,26 +905,27 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- DISABLE AI SAFELY
+        -- DISABLE AI (IMPROVED)
         --------------------------------------------------
-        -- Stop AI scripts inside piggy
         for _, v in ipairs(piggy:GetDescendants()) do
             if v:IsA("Script") then
                 v.Disabled = true
             end
         end
 
+        -- HARD STOP ANY CURRENT AI MOVEMENT
+        humanoid:Move(Vector3.zero, false)
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+
         --------------------------------------------------
-        -- FIX PHYSICS (IMPORTANT)
+        -- FIX PHYSICS
         --------------------------------------------------
         piggyRoot.Anchored = false
         humanoid.PlatformStand = false
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-
-        humanoid.AutoRotate = false -- we control rotation manually
+        humanoid.AutoRotate = false
 
         --------------------------------------------------
-        -- CONTROL LOOP (HUMANOID-BASED, NOT CFrame)
+        -- CONTROL LOOP
         --------------------------------------------------
         controlConnection = RunService.RenderStepped:Connect(function()
 
@@ -933,7 +934,6 @@ createButton("Control Piggy: OFF", function(button)
             local cam = workspace.CurrentCamera
             local moveDir = Vector3.zero
 
-            -- INPUT
             if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
             if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
             if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
@@ -945,12 +945,12 @@ createButton("Control Piggy: OFF", function(button)
             end
 
             --------------------------------------------------
-            -- USE HUMANOID MOVE (FIXES STAIRS + ANIMATIONS)
+            -- FORCE OVERRIDE AI EVERY FRAME
             --------------------------------------------------
             humanoid:Move(moveDir, false)
 
             --------------------------------------------------
-            -- ROTATION (SMOOTH + NO SNAP BACK)
+            -- ROTATION
             --------------------------------------------------
             if moving then
                 local flatDir = Vector3.new(moveDir.X, 0, moveDir.Z)
@@ -963,7 +963,7 @@ createButton("Control Piggy: OFF", function(button)
             end
 
             --------------------------------------------------
-            -- JUMP SUPPORT
+            -- JUMP
             --------------------------------------------------
             if UIS:IsKeyDown(Enum.KeyCode.Space) then
                 if humanoid.FloorMaterial ~= Enum.Material.Air then
@@ -986,7 +986,7 @@ createButton("Control Piggy: OFF", function(button)
         end
 
         --------------------------------------------------
-        -- RESTORE AI (OPTIONAL)
+        -- RESTORE AI
         --------------------------------------------------
         if piggy then
             for _, v in ipairs(piggy:GetDescendants()) do
