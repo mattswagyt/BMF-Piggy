@@ -945,8 +945,9 @@ createButton("Control Piggy: OFF", function(button)
             end
 
             --------------------------------------------------
-            -- FORCE OVERRIDE AI EVERY FRAME
+            -- FORCE OVERRIDE AI EVERY FRAME (UPDATED)
             --------------------------------------------------
+            humanoid:Move(Vector3.zero, false)
             humanoid:Move(moveDir, false)
 
             --------------------------------------------------
