@@ -256,10 +256,20 @@ createButton("TP into Piggy Room (Safe Spot)", function()
 end)
 
 --------------------------------------------------
--- PLAYER ESP (CONSTANT + PIGGY + TRAITOR SUPPORT)
+-- PLAYER ESP (TOGGLE + CONSTANT + PIGGY + TRAITOR SUPPORT)
 --------------------------------------------------
 
-createButton("Player ESP", function()
+local playerESPEnabled = false
+local playerTracked = {}
+
+createButton("Player ESP: OFF", function(button)
+
+    playerESPEnabled = not playerESPEnabled
+
+    button.Text = playerESPEnabled and "Player ESP: ON" or "Player ESP: OFF"
+    button.TextColor3 = playerESPEnabled and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+
+    if not playerESPEnabled then return end
 
     local GREEN = Color3.fromRGB(0,255,0)
     local RED   = Color3.fromRGB(255,0,0)
@@ -267,18 +277,17 @@ createButton("Player ESP", function()
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
-    local tracked = {}
-
     local function apply(character, player)
         if not character or not character:FindFirstChild("HumanoidRootPart") then
             return
         end
 
-        -- Prevent reapplying ESP multiple times
-        if tracked[character] then return end
-        tracked[character] = true
+        if playerTracked[character] then return end
+        playerTracked[character] = true
 
         local function updateESP()
+            if not playerESPEnabled then return end
+
             local color = GREEN
             local label = player.Name
 
@@ -300,25 +309,22 @@ createButton("Player ESP", function()
             createNameTag(character, label, color)
         end
 
-        -- Initial apply
         updateESP()
 
-        -- Listen for Enemy changes
         local enemy = character:FindFirstChild("Enemy")
         if enemy and enemy:IsA("BoolValue") then
             enemy:GetPropertyChangedSignal("Value"):Connect(updateESP)
         end
 
-        -- Listen for Traitor changes
         local traitor = character:FindFirstChild("Traitor")
         if traitor and traitor:IsA("BoolValue") then
             traitor:GetPropertyChangedSignal("Value"):Connect(updateESP)
         end
     end
 
-    -- Constant player detection loop
+    -- Constant detection loop
     task.spawn(function()
-        while true do
+        while playerESPEnabled do
             for _, player in pairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer then
                     local char = player.Character
@@ -327,11 +333,11 @@ createButton("Player ESP", function()
                     end
                 end
             end
-            task.wait(1) -- adjust if you want faster detection
+            task.wait(1)
         end
     end)
 
-    -- Also hook CharacterAdded for instant response
+    -- Instant detection for new players
     Players.PlayerAdded:Connect(function(player)
         player.CharacterAdded:Connect(function(char)
             task.wait(0.5)
@@ -350,28 +356,40 @@ createButton("Player ESP", function()
 
 end)
 
+
 --------------------------------------------------
--- PIGGY ESP AUTO DETECT
+-- PIGGY ESP AUTO DETECT (TOGGLE)
 --------------------------------------------------
 
-createButton("Piggy ESP",function()
+local piggyESPEnabled = false
+local piggyTracked = {}
 
-    local folder=workspace:FindFirstChild("PiggyNPC")
+createButton("Piggy ESP: OFF",function(button)
 
+    piggyESPEnabled = not piggyESPEnabled
+
+    button.Text = piggyESPEnabled and "Piggy ESP: ON" or "Piggy ESP: OFF"
+    button.TextColor3 = piggyESPEnabled and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+
+    if not piggyESPEnabled then return end
+
+    local folder = workspace:FindFirstChild("PiggyNPC")
     if not folder then
         ErrorLog.Text="Error Log: PiggyNPC folder not found"
         return
     end
 
     local function apply(piggy)
+        if not piggyESPEnabled then return end
+        if piggyTracked[piggy] then return end
+        piggyTracked[piggy] = true
 
-        highlightTarget(piggy,Color3.fromRGB(255,0,0))
-        createTracer(piggy,Color3.fromRGB(255,0,0))
-        createNameTag(piggy,"Piggy",Color3.fromRGB(255,0,0))
-
+        highlightTarget(piggy, Color3.fromRGB(255,0,0))
+        createTracer(piggy, Color3.fromRGB(255,0,0))
+        createNameTag(piggy, "Piggy", Color3.fromRGB(255,0,0))
     end
 
-    for _,piggy in pairs(folder:GetChildren()) do
+    for _, piggy in pairs(folder:GetChildren()) do
         apply(piggy)
     end
 
@@ -1146,6 +1164,180 @@ createButton("Control Piggy: OFF", function(button)
         --------------------------------------------------
         if piggy then
             for _, v in ipairs(piggy:GetDescendants()) do
+                if v:IsA("Script") then
+                    v.Disabled = false
+                end
+            end
+        end
+
+        if humanoid then
+            humanoid.AutoRotate = true
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end
+
+        --------------------------------------------------
+        -- RESTORE PLAYER
+        --------------------------------------------------
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Humanoid") then
+            workspace.CurrentCamera.CameraSubject = char.Humanoid
+            char.Humanoid.WalkSpeed = 16
+            char.Humanoid.JumpPower = 50
+        end
+    end
+end)
+
+--------------------------------------------------
+-- CONTROL FOXY (CLIENT CONTROL - BEST POSSIBLE)
+--------------------------------------------------
+
+local controllingFoxy = false
+local controlConnection
+
+local foxy
+local foxyRoot
+local humanoid
+
+createButton("Control Foxy: OFF", function(button)
+
+    controllingFoxy = not controllingFoxy
+
+    if controllingFoxy then
+        button.Text = "Control Foxy: ON"
+        button.TextColor3 = Color3.fromRGB(0,255,0)
+
+        --------------------------------------------------
+        -- FIND FOXY (CARNIVAL SCAN)
+        --------------------------------------------------
+        local carnival = workspace:FindFirstChild("Carnival")
+
+        if not carnival then
+            warn("Carnival map not found")
+            controllingFoxy = false
+            return
+        end
+
+        for _, obj in ipairs(carnival:GetDescendants()) do
+            if obj:IsA("Model") and obj:FindFirstChild("FoxyHead", true) then
+                foxy = obj
+                break
+            end
+        end
+
+        if not foxy then
+            warn("Foxy not found")
+            controllingFoxy = false
+            return
+        end
+
+        foxyRoot = foxy:FindFirstChild("HumanoidRootPart")
+        humanoid = foxy:FindFirstChildOfClass("Humanoid")
+
+        if not foxyRoot or not humanoid then
+            controllingFoxy = false
+            return
+        end
+
+        --------------------------------------------------
+        -- CAMERA TO FOXY
+        --------------------------------------------------
+        workspace.CurrentCamera.CameraSubject = humanoid
+
+        --------------------------------------------------
+        -- DISABLE PLAYER
+        --------------------------------------------------
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.WalkSpeed = 0
+            char.Humanoid.JumpPower = 0
+        end
+
+        --------------------------------------------------
+        -- DISABLE FOXY AI
+        --------------------------------------------------
+        for _, v in ipairs(foxy:GetDescendants()) do
+            if v:IsA("Script") then
+                v.Disabled = true
+            end
+        end
+
+        humanoid:Move(Vector3.zero, false)
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+
+        --------------------------------------------------
+        -- FIX PHYSICS
+        --------------------------------------------------
+        foxyRoot.Anchored = false
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = false
+
+        --------------------------------------------------
+        -- CONTROL LOOP
+        --------------------------------------------------
+        controlConnection = RunService.RenderStepped:Connect(function()
+
+            if not foxyRoot or not humanoid then return end
+
+            local cam = workspace.CurrentCamera
+            local moveDir = Vector3.zero
+
+            if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+            if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+            if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+
+            local moving = moveDir.Magnitude > 0
+            if moving then
+                moveDir = moveDir.Unit
+            end
+
+            --------------------------------------------------
+            -- FORCE CONTROL (BEST POSSIBLE CLIENT METHOD)
+            --------------------------------------------------
+            humanoid:Move(Vector3.zero, false)
+            humanoid:Move(moveDir, false)
+
+            --------------------------------------------------
+            -- ROTATION
+            --------------------------------------------------
+            if moving then
+                local flatDir = Vector3.new(moveDir.X, 0, moveDir.Z)
+                if flatDir.Magnitude > 0 then
+                    foxyRoot.CFrame = CFrame.lookAt(
+                        foxyRoot.Position,
+                        foxyRoot.Position + flatDir
+                    )
+                end
+            end
+
+            --------------------------------------------------
+            -- JUMP
+            --------------------------------------------------
+            if UIS:IsKeyDown(Enum.KeyCode.Space) then
+                if humanoid.FloorMaterial ~= Enum.Material.Air then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+
+        end)
+
+    else
+        --------------------------------------------------
+        -- TURN OFF CONTROL
+        --------------------------------------------------
+        button.Text = "Control Foxy: OFF"
+        button.TextColor3 = Color3.fromRGB(255,255,255)
+
+        if controlConnection then
+            controlConnection:Disconnect()
+            controlConnection = nil
+        end
+
+        --------------------------------------------------
+        -- RESTORE FOXY AI
+        --------------------------------------------------
+        if foxy then
+            for _, v in ipairs(foxy:GetDescendants()) do
                 if v:IsA("Script") then
                     v.Disabled = false
                 end
