@@ -351,123 +351,165 @@ createButton("Player ESP", function()
 end)
 
 --------------------------------------------------
--- UNIVERSAL ENEMY ESP (AUTO DETECT)
+-- PIGGY ESP AUTO DETECT
 --------------------------------------------------
 
 createButton("Piggy ESP",function()
 
-    --------------------------------------------------
-    -- APPLY ESP FUNCTION
-    --------------------------------------------------
-    local function apply(model,name,color)
-        if not model then return end
+    local folder=workspace:FindFirstChild("PiggyNPC")
 
-        highlightTarget(model,color)
-        createTracer(model,color)
-        createNameTag(model,name,color)
+    if not folder then
+        ErrorLog.Text="Error Log: PiggyNPC folder not found"
+        return
+    end
+
+    local function apply(piggy)
+
+        highlightTarget(piggy,Color3.fromRGB(255,0,0))
+        createTracer(piggy,Color3.fromRGB(255,0,0))
+        createNameTag(piggy,"Piggy",Color3.fromRGB(255,0,0))
+
+    end
+
+    for _,piggy in pairs(folder:GetChildren()) do
+        apply(piggy)
+    end
+
+    folder.ChildAdded:Connect(function(piggy)
+        task.wait(0.5)
+        apply(piggy)
+    end)
+
+end)
+
+--------------------------------------------------
+-- ENEMY ESP (AUTO DETECT - MAP BASED)
+--------------------------------------------------
+
+local enemyESPEnabled = false
+local espTracked = {}
+
+createButton("Enemy ESP: OFF", function(button)
+
+    enemyESPEnabled = not enemyESPEnabled
+
+    button.Text = enemyESPEnabled and "Enemy ESP: ON" or "Enemy ESP: OFF"
+    button.TextColor3 = enemyESPEnabled and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+
+    if not enemyESPEnabled then return end
+
+    --------------------------------------------------
+    -- APPLY ESP
+    --------------------------------------------------
+    local function applyESP(model, name, color)
+        if not enemyESPEnabled then return end
+        if espTracked[model] then return end
+        espTracked[model] = true
+
+        highlightTarget(model, color)
+        createTracer(model, color)
+        createNameTag(model, name, color)
     end
 
     --------------------------------------------------
     -- DETECTION LOGIC
     --------------------------------------------------
-    local function detectEnemy(model, parentContainer)
+    local function detectEnemy(model)
         if not model:IsA("Model") then return end
 
-        --------------------------------------------------
-        -- GRANDMOTHER (CITY)
-        --------------------------------------------------
-        if model:FindFirstChild("PiggyHead", true) then
-            apply(model,"Grandmother",Color3.fromRGB(0,0,139)) -- Dark Blue
-            return
-        end
-
-        --------------------------------------------------
-        -- FOXY (CARNIVAL)
-        --------------------------------------------------
-        if model:FindFirstChild("FoxyHead", true) then
-            apply(model,"Foxy",Color3.fromRGB(255,165,0)) -- Orange
-            return
-        end
-
-        --------------------------------------------------
-        -- DOGGY (FOREST)
-        --------------------------------------------------
+        -- DOGGY
         if model:FindFirstChild("DogHead", true) then
-            apply(model,"Doggy",Color3.fromRGB(139,69,19)) -- Brown
+            applyESP(model, "Doggy", Color3.fromRGB(139,69,19))
             return
         end
 
-        --------------------------------------------------
-        -- MOUSEY (MALL)
-        --------------------------------------------------
+        -- FOXY
+        if model:FindFirstChild("FoxyHead", true) then
+            applyESP(model, "Foxy", Color3.fromRGB(255,140,0))
+            return
+        end
+
+        -- GRANDMOTHER
+        if model:FindFirstChild("PiggyHead", true) then
+            applyESP(model, "Grandmother", Color3.fromRGB(0,0,139))
+            return
+        end
+
+        -- MOUSY
         if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
-            apply(model,"Mousy",Color3.fromRGB(255,255,102)) -- Banana
+            applyESP(model, "Mousy", Color3.fromRGB(255,255,102))
             return
         end
 
-        --------------------------------------------------
-        -- MR P (PLANT) - NEW LOGIC
-        --------------------------------------------------
+        -- MR P
         if model:FindFirstChild("Projectiles") then
-            apply(model,"Mr. P",Color3.fromRGB(128,0,128)) -- Purple
-            return
-        end
-
-        --------------------------------------------------
-        -- REGULAR PIGGY (ONLY FROM PiggyNPC FOLDER)
-        --------------------------------------------------
-        if parentContainer and parentContainer.Name == "PiggyNPC" then
-            apply(model,"Piggy",Color3.fromRGB(255,0,0)) -- Red
+            applyESP(model, "Mr. P", Color3.fromRGB(128,0,128))
             return
         end
     end
 
     --------------------------------------------------
-    -- SCAN FUNCTION
+    -- SCAN SPECIFIC MAP
     --------------------------------------------------
-    local function scan(container)
-        if not container then return end
+    local function scanMap(mapName)
+        local map = workspace:FindFirstChild(mapName)
+        if not map then return end
 
-        for _,obj in ipairs(container:GetChildren()) do
-            detectEnemy(obj, container)
+        -- Scan everything inside map
+        for _, obj in ipairs(map:GetDescendants()) do
+            detectEnemy(obj)
         end
 
-        container.ChildAdded:Connect(function(obj)
-            task.wait(0.2)
-            detectEnemy(obj, container)
+        -- Detect new spawns
+        map.DescendantAdded:Connect(function(obj)
+            if not enemyESPEnabled then return end
+            detectEnemy(obj)
         end)
     end
 
     --------------------------------------------------
-    -- MAPS
+    -- TRACK ALL REQUIRED MAPS
     --------------------------------------------------
-    scan(workspace:FindFirstChild("City"))
-    scan(workspace:FindFirstChild("Carnival"))
-    scan(workspace:FindFirstChild("Forest"))
-    scan(workspace:FindFirstChild("Mall"))
-    scan(workspace:FindFirstChild("Plant"))
-    scan(workspace:FindFirstChild("Outpost"))
-
-    --------------------------------------------------
-    -- PIGGYNPC (SPECIAL HANDLING)
-    --------------------------------------------------
-    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
-    if piggyFolder then
-        scan(piggyFolder)
+    local function trackAllMaps()
+        scanMap("Forest")
+        scanMap("Carnival")
+        scanMap("City")
+        scanMap("Mall")
+        scanMap("Plant")
     end
 
+    -- Initial scan
+    trackAllMaps()
+
     --------------------------------------------------
-    -- AUTO DETECT NEW MAPS
+    -- MAP LOAD DETECTION
     --------------------------------------------------
     workspace.ChildAdded:Connect(function(child)
-        task.wait(0.5)
+        if not enemyESPEnabled then return end
 
-        if child:IsA("Model") or child:IsA("Folder") then
-            scan(child)
+        if child.Name == "Forest"
+        or child.Name == "Carnival"
+        or child.Name == "City"
+        or child.Name == "Mall"
+        or child.Name == "Plant" then
+
+            task.wait(0.2)
+            scanMap(child.Name)
+        end
+    end)
+
+    --------------------------------------------------
+    -- CONSTANT ENFORCEMENT LOOP
+    --------------------------------------------------
+    task.spawn(function()
+        while enemyESPEnabled do
+            trackAllMaps()
+            task.wait(0.5)
         end
     end)
 
 end)
+
 
 --------------------------------------------------
 -- God Mode (TOGGLE - UNIFIED + NO STACKED CONNECTIONS)
