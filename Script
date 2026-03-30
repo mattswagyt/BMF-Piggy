@@ -351,37 +351,123 @@ createButton("Player ESP", function()
 end)
 
 --------------------------------------------------
--- PIGGY ESP AUTO DETECT
+-- UNIVERSAL ENEMY ESP (AUTO DETECT)
 --------------------------------------------------
 
 createButton("Piggy ESP",function()
 
-    local folder=workspace:FindFirstChild("PiggyNPC")
+    --------------------------------------------------
+    -- APPLY ESP FUNCTION
+    --------------------------------------------------
+    local function apply(model,name,color)
+        if not model then return end
 
-    if not folder then
-        ErrorLog.Text="Error Log: PiggyNPC folder not found"
-        return
+        highlightTarget(model,color)
+        createTracer(model,color)
+        createNameTag(model,name,color)
     end
 
-    local function apply(piggy)
+    --------------------------------------------------
+    -- DETECTION LOGIC
+    --------------------------------------------------
+    local function detectEnemy(model, parentContainer)
+        if not model:IsA("Model") then return end
 
-        highlightTarget(piggy,Color3.fromRGB(255,0,0))
-        createTracer(piggy,Color3.fromRGB(255,0,0))
-        createNameTag(piggy,"Piggy",Color3.fromRGB(255,0,0))
+        --------------------------------------------------
+        -- GRANDMOTHER (CITY)
+        --------------------------------------------------
+        if model:FindFirstChild("PiggyHead", true) then
+            apply(model,"Grandmother",Color3.fromRGB(0,0,139)) -- Dark Blue
+            return
+        end
 
+        --------------------------------------------------
+        -- FOXY (CARNIVAL)
+        --------------------------------------------------
+        if model:FindFirstChild("FoxyHead", true) then
+            apply(model,"Foxy",Color3.fromRGB(255,165,0)) -- Orange
+            return
+        end
+
+        --------------------------------------------------
+        -- DOGGY (FOREST)
+        --------------------------------------------------
+        if model:FindFirstChild("DogHead", true) then
+            apply(model,"Doggy",Color3.fromRGB(139,69,19)) -- Brown
+            return
+        end
+
+        --------------------------------------------------
+        -- MOUSEY (MALL)
+        --------------------------------------------------
+        if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
+            apply(model,"Mousy",Color3.fromRGB(255,255,102)) -- Banana
+            return
+        end
+
+        --------------------------------------------------
+        -- MR P (PLANT) - NEW LOGIC
+        --------------------------------------------------
+        if model:FindFirstChild("Projectiles") then
+            apply(model,"Mr. P",Color3.fromRGB(128,0,128)) -- Purple
+            return
+        end
+
+        --------------------------------------------------
+        -- REGULAR PIGGY (ONLY FROM PiggyNPC FOLDER)
+        --------------------------------------------------
+        if parentContainer and parentContainer.Name == "PiggyNPC" then
+            apply(model,"Piggy",Color3.fromRGB(255,0,0)) -- Red
+            return
+        end
     end
 
-    for _,piggy in pairs(folder:GetChildren()) do
-        apply(piggy)
+    --------------------------------------------------
+    -- SCAN FUNCTION
+    --------------------------------------------------
+    local function scan(container)
+        if not container then return end
+
+        for _,obj in ipairs(container:GetChildren()) do
+            detectEnemy(obj, container)
+        end
+
+        container.ChildAdded:Connect(function(obj)
+            task.wait(0.2)
+            detectEnemy(obj, container)
+        end)
     end
 
-    folder.ChildAdded:Connect(function(piggy)
+    --------------------------------------------------
+    -- MAPS
+    --------------------------------------------------
+    scan(workspace:FindFirstChild("City"))
+    scan(workspace:FindFirstChild("Carnival"))
+    scan(workspace:FindFirstChild("Forest"))
+    scan(workspace:FindFirstChild("Mall"))
+    scan(workspace:FindFirstChild("Plant"))
+    scan(workspace:FindFirstChild("Outpost"))
+
+    --------------------------------------------------
+    -- PIGGYNPC (SPECIAL HANDLING)
+    --------------------------------------------------
+    local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+    if piggyFolder then
+        scan(piggyFolder)
+    end
+
+    --------------------------------------------------
+    -- AUTO DETECT NEW MAPS
+    --------------------------------------------------
+    workspace.ChildAdded:Connect(function(child)
         task.wait(0.5)
-        apply(piggy)
+
+        if child:IsA("Model") or child:IsA("Folder") then
+            scan(child)
+        end
     end)
 
 end)
-
 
 --------------------------------------------------
 -- God Mode (TOGGLE - UNIFIED + NO STACKED CONNECTIONS)
@@ -438,7 +524,6 @@ createButton("God Mode: OFF", function(button)
 
         neuter(model, isGrandmother)
 
-        -- unified descendant tracking
         model.DescendantAdded:Connect(function(obj)
             if not godModeEnabled then return end
             if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
@@ -446,7 +531,6 @@ createButton("God Mode: OFF", function(button)
             end
         end)
 
-        -- unified child tracking
         model.ChildAdded:Connect(function(child)
             if not godModeEnabled then return end
             if child.Name == "Enemy" and child:IsA("BoolValue") then
@@ -454,7 +538,6 @@ createButton("God Mode: OFF", function(button)
             end
         end)
 
-        -- continuous enforcement
         task.spawn(function()
             while model.Parent and godModeEnabled do
                 neuter(model, isGrandmother)
@@ -495,18 +578,53 @@ createButton("God Mode: OFF", function(button)
             end
         end
 
-        -- handle existing
         for _, obj in ipairs(map:GetDescendants()) do
             handle(obj)
         end
 
-        -- handle new
         map.DescendantAdded:Connect(handle)
     end
 
     autoDetectMap("City", "PiggyHead", true)
     autoDetectMap("Carnival", "FoxyHead", false)
     autoDetectMap("Forest", "DogHead", false)
+
+    --------------------------------------------------
+    -- MOUSEY SUPPORT (NEW)
+    --------------------------------------------------
+    local function trackMousy()
+        local mall = workspace:FindFirstChild("Mall")
+        if not mall then return end
+
+        local function handle(model)
+            if not model:IsA("Model") then return end
+
+            -- Detect Mousy via required parts
+            local hasHead = model:FindFirstChild("MousyHead", true)
+            local hasPoints = model:FindFirstChild("MousyPoints", true)
+
+            if hasHead and hasPoints then
+                track(model, true) -- treat like Grandmother
+            end
+        end
+
+        -- existing models
+        for _, obj in ipairs(mall:GetDescendants()) do
+            handle(obj)
+        end
+
+        -- new models
+        mall.DescendantAdded:Connect(handle)
+    end
+
+    trackMousy()
+
+    workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Mall" then
+            task.wait(0.2)
+            trackMousy()
+        end
+    end)
 
     --------------------------------------------------
     -- MR P PROJECTILES
@@ -612,24 +730,19 @@ createButton("God Mode: OFF", function(button)
     --------------------------------------------------
     task.spawn(function()
         while godModeEnabled do
-            -- Re-run map detection (safe, no duplicate connections)
             autoDetectMap("City", "PiggyHead", true)
             autoDetectMap("Carnival", "FoxyHead", false)
             autoDetectMap("Forest", "DogHead", false)
 
-            -- Mr P
             trackPlant()
-
-            -- PiggyNPC
             trackPiggyNPC()
-
-            -- Mall lasers
             trackMall()
-
-            -- Outpost
             trackOutpost()
 
-            task.wait(0.5) -- slightly less frequent, less CPU
+            -- NEW: Mousy enforcement
+            trackMousy()
+
+            task.wait(0.5)
         end
     end)
 end)
