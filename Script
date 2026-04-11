@@ -807,6 +807,141 @@ createButton("God Mode: OFF", function(button)
     end)
 end)
 
+--------------------------------------------------
+-- ALLIES DON'T DEAL DAMAGE (TOGGLE)
+--------------------------------------------------
+
+local alliesNoDamageEnabled = false
+local alliesTracked = {}
+
+createButton("Allies Don't Deal Damage: OFF", function(button)
+
+    alliesNoDamageEnabled = not alliesNoDamageEnabled
+
+    button.Text = alliesNoDamageEnabled and "Allies Don't Deal Damage: ON" or "Allies Don't Deal Damage: OFF"
+    button.TextColor3 = alliesNoDamageEnabled and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+
+    if not alliesNoDamageEnabled then return end
+
+    --------------------------------------------------
+    -- ALLY HEAD PARTS PER MAP
+    --------------------------------------------------
+    local allyHeads = {
+        Gallery = { "DogHead" },
+        School  = { "BunnyHead" },
+        Metro   = { "BunnyHead" },
+        City    = { "ZizzyHead" },
+        Outpost = { "ZizzyHead", "PonyHead" },
+        Plant   = { "GeorgieHead" }
+    }
+
+    --------------------------------------------------
+    -- FIND CURRENT MAP
+    --------------------------------------------------
+    local function detectCurrentMap()
+        for mapName, _ in pairs(allyHeads) do
+            if workspace:FindFirstChild(mapName) then
+                return mapName, workspace[mapName]
+            end
+        end
+        return nil, nil
+    end
+
+    --------------------------------------------------
+    -- NEUTER ALLY (DESTROY TOUCH + ENEMY = FALSE)
+    --------------------------------------------------
+    local function neuterAlly(model)
+        if not model or alliesTracked[model] then return end
+        alliesTracked[model] = true
+
+        -- Set Enemy = false
+        local enemy = model:FindFirstChild("Enemy")
+        if enemy and enemy:IsA("BoolValue") then
+            enemy.Value = false
+        end
+
+        -- Destroy TouchInterests under HumanoidRootPart
+        local hrp = model:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            for _, v in ipairs(hrp:GetDescendants()) do
+                if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                    v:Destroy()
+                end
+            end
+        end
+
+        -- Constant enforcement
+        task.spawn(function()
+            while alliesNoDamageEnabled and model.Parent do
+                local enemy = model:FindFirstChild("Enemy")
+                if enemy then enemy.Value = false end
+
+                local hrp = model:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    for _, v in ipairs(hrp:GetDescendants()) do
+                        if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
+                            v:Destroy()
+                        end
+                    end
+                end
+
+                task.wait(0.2)
+            end
+        end)
+    end
+
+    --------------------------------------------------
+    -- SCAN MAP FOR ALLIES
+    --------------------------------------------------
+    local function scanForAllies(mapModel, headNames)
+        for _, obj in ipairs(mapModel:GetDescendants()) do
+            if obj:IsA("UnionOperation") or obj:IsA("BasePart") then
+                for _, headName in ipairs(headNames) do
+                    if obj.Name == headName then
+                        local allyModel = obj:FindFirstAncestorOfClass("Model")
+                        if allyModel then
+                            neuterAlly(allyModel)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Detect new spawns
+        mapModel.DescendantAdded:Connect(function(obj)
+            if not alliesNoDamageEnabled then return end
+
+            if obj:IsA("UnionOperation") or obj:IsA("BasePart") then
+                for _, headName in ipairs(headNames) do
+                    if obj.Name == headName then
+                        local allyModel = obj:FindFirstAncestorOfClass("Model")
+                        if allyModel then
+                            neuterAlly(allyModel)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    --------------------------------------------------
+    -- MAIN LOOP
+    --------------------------------------------------
+    task.spawn(function()
+        while alliesNoDamageEnabled do
+
+            local mapName, mapModel = detectCurrentMap()
+            if mapName and mapModel then
+                local heads = allyHeads[mapName]
+                scanForAllies(mapModel, heads)
+            end
+
+            task.wait(0.5)
+        end
+    end)
+
+end)
+
 
 --------------------------------------------------
 -- FULL BRIGHT
