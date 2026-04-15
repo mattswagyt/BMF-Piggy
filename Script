@@ -808,7 +808,7 @@ createButton("God Mode: OFF", function(button)
 end)
 
 --------------------------------------------------
--- ALLIES DON'T DEAL DAMAGE (MAP-AWARE + GODMODE STYLE)
+-- ALLIES DON'T DEAL DAMAGE (FIXED)
 --------------------------------------------------
 
 local alliesNoDamageEnabled = false
@@ -824,41 +824,25 @@ createButton("Allies Don't Deal Damage: OFF", function(button)
     if not alliesNoDamageEnabled then return end
 
     --------------------------------------------------
-    -- MAP → ALLY HEADS
+    -- ALLY HEADS (GLOBAL)
     --------------------------------------------------
-    local mapAllies = {
-        Gallery = { "DogHead" },
-        School  = { "BunnyHead" },
-        Metro   = { "BunnyHead" },
-        City    = { "ZizzyHead" },
-        Outpost = { "ZizzyHead", "PonyHead" },
-        Plant   = { "GeorgieHead" }
+    local allyHeads = {
+        DogHead = true,
+        BunnyHead = true,
+        ZizzyHead = true,
+        PonyHead = true,
+        GeorgieHead = true
     }
 
     --------------------------------------------------
-    -- DETECT CURRENT MAP
+    -- CHECK IF MODEL IS ALLY
     --------------------------------------------------
-    local function getCurrentMap()
-        for mapName, _ in pairs(mapAllies) do
-            local map = workspace:FindFirstChild(mapName)
-            if map then
-                return mapName, map
-            end
-        end
-        return nil, nil
-    end
-
-    --------------------------------------------------
-    -- CHECK IF MODEL IS ALLY (BASED ON MAP HEADS)
-    --------------------------------------------------
-    local function isAlly(model, validHeads)
+    local function isAlly(model)
         if not model or not model:IsA("Model") then return false end
 
         for _, obj in ipairs(model:GetDescendants()) do
-            for _, headName in ipairs(validHeads) do
-                if obj.Name == headName then
-                    return true
-                end
+            if allyHeads[obj.Name] then
+                return true
             end
         end
 
@@ -866,20 +850,28 @@ createButton("Allies Don't Deal Damage: OFF", function(button)
     end
 
     --------------------------------------------------
-    -- NEUTER ALLY
+    -- NEUTER ALLY (STRONGER VERSION)
     --------------------------------------------------
     local function neuterAlly(model)
-        if not model or not model.Parent then return end
+        if not model then return end
 
+        -- Disable Enemy flag if it exists
         local enemy = model:FindFirstChild("Enemy")
         if enemy and enemy:IsA("BoolValue") then
             enemy.Value = false
         end
 
+        -- Destroy all touch damage
         for _, v in ipairs(model:GetDescendants()) do
             if v:IsA("TouchTransmitter") or v.Name == "TouchInterest" then
                 v:Destroy()
             end
+        end
+
+        -- Kill humanoid damage ability
+        local humanoid = model:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Attacking, false)
         end
     end
 
@@ -887,9 +879,7 @@ createButton("Allies Don't Deal Damage: OFF", function(button)
     -- TRACK ALLY
     --------------------------------------------------
     local function trackAlly(model)
-        if not alliesNoDamageEnabled then return end
         if alliesTracked[model] then return end
-
         alliesTracked[model] = true
 
         neuterAlly(model)
@@ -901,52 +891,27 @@ createButton("Allies Don't Deal Damage: OFF", function(button)
             end
         end)
 
-        model.ChildAdded:Connect(function(child)
-            if not alliesNoDamageEnabled then return end
-            if child.Name == "Enemy" and child:IsA("BoolValue") then
-                child.Value = false
-            end
-        end)
-
         task.spawn(function()
             while alliesNoDamageEnabled and model.Parent do
                 neuterAlly(model)
-                task.wait(0.2)
+                task.wait(0.3)
             end
         end)
     end
 
     --------------------------------------------------
-    -- MAIN LOOP (MAP-AWARE SCANNING)
+    -- GLOBAL SCAN LOOP
     --------------------------------------------------
     task.spawn(function()
         while alliesNoDamageEnabled do
 
-            local mapName, mapModel = getCurrentMap()
-
-            if mapName and mapModel then
-                local validHeads = mapAllies[mapName]
-
-                -- Scan EVERYTHING under the map
-                for _, obj in ipairs(mapModel:GetDescendants()) do
-                    if obj:IsA("Model") and isAlly(obj, validHeads) then
-                        trackAlly(obj)
-                    end
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("Model") and isAlly(obj) then
+                    trackAlly(obj)
                 end
-
-                -- Detect NEW allies in that map
-                mapModel.DescendantAdded:Connect(function(obj)
-                    if not alliesNoDamageEnabled then return end
-
-                    local model = obj:IsA("Model") and obj or obj:FindFirstAncestorOfClass("Model")
-
-                    if model and isAlly(model, validHeads) then
-                        trackAlly(model)
-                    end
-                end)
             end
 
-            task.wait(0.5)
+            task.wait(1)
         end
     end)
 
