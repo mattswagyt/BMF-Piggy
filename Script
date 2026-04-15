@@ -256,7 +256,7 @@ createButton("TP into Piggy Room (Safe Spot)", function()
 end)
 
 --------------------------------------------------
--- PLAYER ESP (TOGGLE + CONSTANT + PIGGY + TRAITOR SUPPORT)
+-- PLAYER ESP (FULLY FIXED + TRAITOR SUPPORT)
 --------------------------------------------------
 
 local playerESPEnabled = false
@@ -271,12 +271,15 @@ createButton("Player ESP: OFF", function(button)
 
     if not playerESPEnabled then return end
 
-    local GREEN = Color3.fromRGB(0,255,0)
-    local RED   = Color3.fromRGB(255,0,0)
-
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
 
+    local GREEN = Color3.fromRGB(0,255,0)
+    local RED   = Color3.fromRGB(255,0,0)
+
+    --------------------------------------------------
+    -- APPLY ESP TO CHARACTER
+    --------------------------------------------------
     local function apply(character, player)
         if not character or not character:FindFirstChild("HumanoidRootPart") then
             return
@@ -285,21 +288,40 @@ createButton("Player ESP: OFF", function(button)
         if playerTracked[character] then return end
         playerTracked[character] = true
 
+        --------------------------------------------------
+        -- TRAITOR CHECK (FIXED)
+        --------------------------------------------------
+        local function isTraitor()
+            local t1 = character:FindFirstChild("Traitor")
+            if t1 and t1:IsA("BoolValue") then
+                return t1.Value
+            end
+
+            local t2 = player:FindFirstChild("Traitor")
+            if t2 and t2:IsA("BoolValue") then
+                return t2.Value
+            end
+
+            return false
+        end
+
+        --------------------------------------------------
+        -- UPDATE ESP
+        --------------------------------------------------
         local function updateESP()
-            if not playerESPEnabled then return end
+            if not playerESPEnabled or not character.Parent then return end
 
             local color = GREEN
             local label = player.Name
 
-            -- Piggy (Enemy)
+            -- Piggy enemy
             local enemy = character:FindFirstChild("Enemy")
             if enemy and enemy:IsA("BoolValue") and enemy.Value == true then
                 color = RED
             end
 
-            -- Traitor (priority over normal name)
-            local traitor = character:FindFirstChild("Traitor")
-            if traitor and traitor:IsA("BoolValue") and traitor.Value == true then
+            -- Traitor (priority)
+            if isTraitor() then
                 color = RED
                 label = "TRAITOR"
             end
@@ -311,18 +333,48 @@ createButton("Player ESP: OFF", function(button)
 
         updateESP()
 
-        local enemy = character:FindFirstChild("Enemy")
-        if enemy and enemy:IsA("BoolValue") then
-            enemy:GetPropertyChangedSignal("Value"):Connect(updateESP)
+        --------------------------------------------------
+        -- CONTINUOUS UPDATE LOOP (KEY FIX)
+        --------------------------------------------------
+        task.spawn(function()
+            while playerESPEnabled and character.Parent do
+                updateESP()
+                task.wait(0.3)
+            end
+        end)
+
+        --------------------------------------------------
+        -- LISTEN FOR VALUES BEING ADDED LATE
+        --------------------------------------------------
+        local function hookValue(val)
+            if val and val:IsA("BoolValue") then
+                val:GetPropertyChangedSignal("Value"):Connect(updateESP)
+            end
         end
 
-        local traitor = character:FindFirstChild("Traitor")
-        if traitor and traitor:IsA("BoolValue") then
-            traitor:GetPropertyChangedSignal("Value"):Connect(updateESP)
-        end
+        character.ChildAdded:Connect(function(child)
+            if child.Name == "Traitor" or child.Name == "Enemy" then
+                hookValue(child)
+                updateESP()
+            end
+        end)
+
+        player.ChildAdded:Connect(function(child)
+            if child.Name == "Traitor" then
+                hookValue(child)
+                updateESP()
+            end
+        end)
+
+        -- Hook existing values if already present
+        hookValue(character:FindFirstChild("Traitor"))
+        hookValue(player:FindFirstChild("Traitor"))
+        hookValue(character:FindFirstChild("Enemy"))
     end
 
-    -- Constant detection loop
+    --------------------------------------------------
+    -- TRACK PLAYERS LOOP
+    --------------------------------------------------
     task.spawn(function()
         while playerESPEnabled do
             for _, player in pairs(Players:GetPlayers()) do
@@ -337,7 +389,9 @@ createButton("Player ESP: OFF", function(button)
         end
     end)
 
-    -- Instant detection for new players
+    --------------------------------------------------
+    -- HANDLE NEW PLAYERS
+    --------------------------------------------------
     Players.PlayerAdded:Connect(function(player)
         player.CharacterAdded:Connect(function(char)
             task.wait(0.5)
@@ -345,6 +399,9 @@ createButton("Player ESP: OFF", function(button)
         end)
     end)
 
+    --------------------------------------------------
+    -- HANDLE RESPAWNS
+    --------------------------------------------------
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             player.CharacterAdded:Connect(function(char)
@@ -355,7 +412,6 @@ createButton("Player ESP: OFF", function(button)
     end
 
 end)
-
 
 --------------------------------------------------
 -- PIGGY ESP AUTO DETECT (TOGGLE)
