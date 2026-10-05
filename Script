@@ -217,7 +217,6 @@ local function setupScrollTab(tabFrame)
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarImageColor3 = PINK
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 	local layout = Instance.new("UIListLayout")
 	layout.Parent = scroll
@@ -238,6 +237,14 @@ local ExploitsScroll = setupScrollTab(Tabs["Exploits_Frame"])
 local TeleportsScroll = setupScrollTab(Tabs["Teleports_Frame"])
 local MiscScroll = setupScrollTab(Tabs["Misc_Frame"])
 local ScriptsScroll = setupScrollTab(Tabs["Scripts_Frame"])
+
+local ErrorLog -- Forward declaration
+
+local function logError(msg)
+	if ErrorLog then
+		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
+	end
+end
 
 local function createButton(parent, name, callback)
 	local Button = Instance.new("TextButton")
@@ -269,17 +276,7 @@ local function setToggleVisual(button, enabled, onText, offText)
 end
 
 --------------------------------------------------
--- ERROR LOG (HOME)
---------------------------------------------------
-
-local function logError(msg)
-	if ErrorLog then
-		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
-	end
-end
-
---------------------------------------------------
--- LAG-FREE ESP CORE (single render loop, reused drawings)
+-- LAG-FREE ESP CORE
 --------------------------------------------------
 
 local DrawingAvailable = (type(Drawing) == "table" and type(Drawing.new) == "function")
@@ -627,7 +624,6 @@ BodyCopy.AutomaticSize = Enum.AutomaticSize.Y
 BodyCopy.Text =
 	"Hello, thank you for using BMF Menu! This script was developed and is actively maintained by BMF. The script supports the following features:\n\n• Player Features\n• ESP\n• Exploits\n• Teleports\n• Misc\n• Scripts\n• Free and keyless!"
 
--- Keep profile frame tall enough under the wrapped copy
 task.defer(function()
 	local function fit()
 		local bottom = math.max(108, BodyCopy.AbsolutePosition.Y - ProfileFrame.AbsolutePosition.Y + BodyCopy.AbsoluteSize.Y + 16)
@@ -939,7 +935,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 --------------------------------------------------
--- ESP TAB  (unified 1-render-loop, no stacked connections)
+-- ESP TAB
 --------------------------------------------------
 
 local playerESPEnabled = false
@@ -947,9 +943,9 @@ local piggyESPEnabled = false
 local enemyESPEnabled = false
 local itemESPEnabled = false
 
-local trackedEnemies = {} -- [model] = {name=, color=}
-local trackedItems = {} -- [instance] = {name=, color=}
-local trackedPiggies = {} -- [model] = true
+local trackedEnemies = {}
+local trackedItems = {}
+local trackedPiggies = {}
 local originalItemNames = {}
 
 local ENEMY_MAPS = { "Forest", "Carnival", "City", "Mall", "Plant" }
@@ -1166,7 +1162,6 @@ local itemESPBtn = createButton(ESPScroll, "Item ESP: OFF", function(button)
 end)
 itemESPBtn.TextColor3 = RED
 
--- Slow scanners (NOT every frame)
 task.spawn(function()
 	while true do
 		if playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled then
@@ -1184,7 +1179,6 @@ task.spawn(function()
 	end
 end)
 
--- Catch new maps / item dumps without scanning the whole tree every frame
 workspace.ChildAdded:Connect(function(child)
 	if enemyESPEnabled then
 		for _, mapName in ipairs(ENEMY_MAPS) do
@@ -1207,7 +1201,6 @@ workspace.ChildAdded:Connect(function(child)
 	end
 end)
 
--- Unified ESP render: one loop, reuse tracers, skip work when all ESP off
 RunService.RenderStepped:Connect(function()
 	if not (playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled) then
 		return
@@ -1281,13 +1274,13 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------
--- EXPLOITS TAB  (event-driven God Mode / Allies — no per-frame GetDescendants)
+-- EXPLOITS TAB
 --------------------------------------------------
 
 local godModeEnabled = false
 local alliesNoDamageEnabled = false
-local godTracked = {} -- [model] = true
-local alliesTracked = {} -- [model] = true
+local godTracked = {}
+local alliesTracked = {}
 
 local ALLY_HEADS = {
 	DogHead = true,
@@ -1522,7 +1515,6 @@ task.spawn(function()
 	while true do
 		if godModeEnabled then
 			pcall(scanGodMode)
-			-- light refresh of already-tracked models (Enemy flag only, not full tree every time)
 			local n = 0
 			for model in pairs(godTracked) do
 				if model and model.Parent then
@@ -1630,12 +1622,30 @@ miscWip.TextWrapped = true
 --------------------------------------------------
 
 local function runRemote(url, label)
-	local ok, err = pcall(function()
-		loadstring(game:HttpGet(url))()
+	task.spawn(function()
+		local httpGetSuccess, scriptContent = pcall(function()
+			return game:HttpGet(url)
+		end)
+
+		if not httpGetSuccess or type(scriptContent) ~= "string" or scriptContent == "" then
+			logError((label or "Script") .. " HTTP request failed.")
+			return
+		end
+
+		local compileSuccess, compiledFunc = pcall(function()
+			return loadstring(scriptContent)
+		end)
+
+		if not compileSuccess or type(compiledFunc) ~= "function" then
+			logError((label or "Script") .. " compile failed: " .. tostring(compiledFunc))
+			return
+		end
+
+		local runSuccess, runError = pcall(compiledFunc)
+		if not runSuccess then
+			logError((label or "Script") .. " execution error: " .. tostring(runError))
+		end
 	end)
-	if not ok then
-		logError((label or "Script") .. " failed: " .. tostring(err))
-	end
 end
 
 createButton(ScriptsScroll, "Infinite Yield", function()
