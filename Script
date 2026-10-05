@@ -3,14 +3,25 @@
 -- V2.0.0 | Made by BMF!
 
 --------------------------------------------------
--- SAFE LOADER HELPER (Prevents Line 1 loadstring nil crash)
+-- FORWARD DECLARATIONS & SAFE LOADER HELPERS
 --------------------------------------------------
 
+local ErrorLog = nil
+
+local function logError(msg)
+	if ErrorLog then
+		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
+	end
+end
+
+-- Safely fetch raw text from HTTP without crashing on nil
 local function safeHttpGet(url)
 	local reqFunc = (syn and syn.request) or (http and http.request) or http_request or request
 	if reqFunc then
-		local response = reqFunc({ Url = url, Method = "GET" })
-		if response and response.Body and response.Body ~= "" then
+		local ok, response = pcall(function()
+			return reqFunc({ Url = url, Method = "GET" })
+		end)
+		if ok and response and response.Body and response.Body ~= "" then
 			return response.Body
 		end
 	end
@@ -23,18 +34,19 @@ local function safeHttpGet(url)
 	return nil
 end
 
+-- Safely compile and execute a Lua string without nil loadstring errors
 local function safeLoadString(code, sourceName)
 	if type(code) ~= "string" or code == "" then
-		return nil, "Invalid or empty code string received for " .. tostring(sourceName or "Script")
+		return nil, "HTTP Request returned empty or nil response"
 	end
-	local loader = getgenv and getgenv().loadstring or loadstring
+	local loader = (getgenv and getgenv().loadstring) or loadstring
 	local ok, compiled = pcall(function()
 		return loader(code)
 	end)
 	if ok and type(compiled) == "function" then
 		return compiled, nil
 	end
-	return nil, tostring(compiled or "Failed to compile lua code")
+	return nil, tostring(compiled or "Failed to compile string")
 end
 
 --------------------------------------------------
@@ -273,14 +285,6 @@ local TeleportsScroll = setupScrollTab(Tabs["Teleports_Frame"])
 local MiscScroll = setupScrollTab(Tabs["Misc_Frame"])
 local ScriptsScroll = setupScrollTab(Tabs["Scripts_Frame"])
 
-local ErrorLog
-
-local function logError(msg)
-	if ErrorLog then
-		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
-	end
-end
-
 local function createButton(parent, name, callback)
 	local Button = Instance.new("TextButton")
 	Button.Parent = parent
@@ -311,7 +315,7 @@ local function setToggleVisual(button, enabled, onText, offText)
 end
 
 --------------------------------------------------
--- LAG-FREE ESP CORE
+-- LAG-FREE ESP CORE (single render loop, reused drawings)
 --------------------------------------------------
 
 local DrawingAvailable = (type(Drawing) == "table" and type(Drawing.new) == "function")
