@@ -3,6 +3,41 @@
 -- V2.0.0 | Made by BMF!
 
 --------------------------------------------------
+-- SAFE LOADER HELPER (Prevents Line 1 loadstring nil crash)
+--------------------------------------------------
+
+local function safeHttpGet(url)
+	local reqFunc = (syn and syn.request) or (http and http.request) or http_request or request
+	if reqFunc then
+		local response = reqFunc({ Url = url, Method = "GET" })
+		if response and response.Body and response.Body ~= "" then
+			return response.Body
+		end
+	end
+	local ok, body = pcall(function()
+		return game:HttpGet(url)
+	end)
+	if ok and type(body) == "string" and body ~= "" then
+		return body
+	end
+	return nil
+end
+
+local function safeLoadString(code, sourceName)
+	if type(code) ~= "string" or code == "" then
+		return nil, "Invalid or empty code string received for " .. tostring(sourceName or "Script")
+	end
+	local loader = getgenv and getgenv().loadstring or loadstring
+	local ok, compiled = pcall(function()
+		return loader(code)
+	end)
+	if ok and type(compiled) == "function" then
+		return compiled, nil
+	end
+	return nil, tostring(compiled or "Failed to compile lua code")
+end
+
+--------------------------------------------------
 -- SERVICES
 --------------------------------------------------
 
@@ -238,7 +273,7 @@ local TeleportsScroll = setupScrollTab(Tabs["Teleports_Frame"])
 local MiscScroll = setupScrollTab(Tabs["Misc_Frame"])
 local ScriptsScroll = setupScrollTab(Tabs["Scripts_Frame"])
 
-local ErrorLog -- Forward declaration
+local ErrorLog
 
 local function logError(msg)
 	if ErrorLog then
@@ -1623,21 +1658,15 @@ miscWip.TextWrapped = true
 
 local function runRemote(url, label)
 	task.spawn(function()
-		local httpGetSuccess, scriptContent = pcall(function()
-			return game:HttpGet(url)
-		end)
-
-		if not httpGetSuccess or type(scriptContent) ~= "string" or scriptContent == "" then
+		local scriptContent = safeHttpGet(url)
+		if not scriptContent then
 			logError((label or "Script") .. " HTTP request failed.")
 			return
 		end
 
-		local compileSuccess, compiledFunc = pcall(function()
-			return loadstring(scriptContent)
-		end)
-
-		if not compileSuccess or type(compiledFunc) ~= "function" then
-			logError((label or "Script") .. " compile failed: " .. tostring(compiledFunc))
+		local compiledFunc, compileErr = safeLoadString(scriptContent, label)
+		if not compiledFunc then
+			logError((label or "Script") .. " compile failed: " .. tostring(compileErr))
 			return
 		end
 
