@@ -1,52 +1,10 @@
 -- BMF Menu - Piggy (Book 1)
 -- Fully remade UI (Squid Game X layout) + lag-free ESP / God Mode / Allies
--- V2.0.0 | Made by BMF!
+-- V2.0.1 | Made by BMF!
+-- PASTE THIS ENTIRE FILE into your executor. Do NOT wrap it in loadstring(game:HttpGet(...)).
 
---------------------------------------------------
--- FORWARD DECLARATIONS & SAFE LOADER HELPERS
---------------------------------------------------
-
-local ErrorLog = nil
-
-local function logError(msg)
-	if ErrorLog then
-		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
-	end
-end
-
--- Safely fetch raw text from HTTP without crashing on nil
-local function safeHttpGet(url)
-	local reqFunc = (syn and syn.request) or (http and http.request) or http_request or request
-	if reqFunc then
-		local ok, response = pcall(function()
-			return reqFunc({ Url = url, Method = "GET" })
-		end)
-		if ok and response and response.Body and response.Body ~= "" then
-			return response.Body
-		end
-	end
-	local ok, body = pcall(function()
-		return game:HttpGet(url)
-	end)
-	if ok and type(body) == "string" and body ~= "" then
-		return body
-	end
-	return nil
-end
-
--- Safely compile and execute a Lua string without nil loadstring errors
-local function safeLoadString(code, sourceName)
-	if type(code) ~= "string" or code == "" then
-		return nil, "HTTP Request returned empty or nil response"
-	end
-	local loader = (getgenv and getgenv().loadstring) or loadstring
-	local ok, compiled = pcall(function()
-		return loader(code)
-	end)
-	if ok and type(compiled) == "function" then
-		return compiled, nil
-	end
-	return nil, tostring(compiled or "Failed to compile string")
+if not game:IsLoaded() then
+	game.Loaded:Wait()
 end
 
 --------------------------------------------------
@@ -59,6 +17,10 @@ local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
+while not LocalPlayer do
+	task.wait()
+	LocalPlayer = Players.LocalPlayer
+end
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 --------------------------------------------------
@@ -77,7 +39,10 @@ local GREEN = Color3.fromRGB(0, 255, 0)
 local RED = Color3.fromRGB(255, 0, 0)
 local YELLOW = Color3.fromRGB(255, 255, 0)
 
-local TITLE_FONT = Enum.Font.Creepster
+local TITLE_FONT = Enum.Font.SourceSansBold
+pcall(function()
+	TITLE_FONT = Enum.Font.Creepster
+end)
 local UI_FONT = Enum.Font.SourceSansBold
 local BODY_FONT = Enum.Font.SourceSans
 
@@ -89,7 +54,30 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BMFMenu_PiggyBook1"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = PlayerGui
+ScreenGui.IgnoreGuiInset = true
+
+pcall(function()
+	if syn and syn.protect_gui then
+		syn.protect_gui(ScreenGui)
+	elseif protectgui then
+		protectgui(ScreenGui)
+	end
+end)
+
+local guiParent = PlayerGui
+pcall(function()
+	if gethui then
+		guiParent = gethui()
+	else
+		guiParent = game:GetService("CoreGui")
+	end
+end)
+local parented = pcall(function()
+	ScreenGui.Parent = guiParent
+end)
+if not parented or not ScreenGui.Parent then
+	ScreenGui.Parent = PlayerGui
+end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "Main"
@@ -119,7 +107,7 @@ Title.BorderSizePixel = 0
 
 local VersionLabel = Instance.new("TextLabel")
 VersionLabel.Parent = MainFrame
-VersionLabel.Text = "V2.0.0"
+VersionLabel.Text = "V2.0.1"
 VersionLabel.Size = UDim2.new(0, 150, 0, 20)
 VersionLabel.AnchorPoint = Vector2.new(0, 1)
 VersionLabel.Position = UDim2.new(0, 15, 1, -10)
@@ -264,6 +252,7 @@ local function setupScrollTab(tabFrame)
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarImageColor3 = PINK
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 	local layout = Instance.new("UIListLayout")
 	layout.Parent = scroll
@@ -312,6 +301,16 @@ end
 local function setToggleVisual(button, enabled, onText, offText)
 	button.Text = enabled and onText or offText
 	button.TextColor3 = enabled and GREEN or RED
+end
+
+--------------------------------------------------
+-- ERROR LOG (HOME)
+--------------------------------------------------
+
+local function logError(msg)
+	if ErrorLog then
+		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
+	end
 end
 
 --------------------------------------------------
@@ -663,6 +662,7 @@ BodyCopy.AutomaticSize = Enum.AutomaticSize.Y
 BodyCopy.Text =
 	"Hello, thank you for using BMF Menu! This script was developed and is actively maintained by BMF. The script supports the following features:\n\n• Player Features\n• ESP\n• Exploits\n• Teleports\n• Misc\n• Scripts\n• Free and keyless!"
 
+-- Keep profile frame tall enough under the wrapped copy
 task.defer(function()
 	local function fit()
 		local bottom = math.max(108, BodyCopy.AbsolutePosition.Y - ProfileFrame.AbsolutePosition.Y + BodyCopy.AbsoluteSize.Y + 16)
@@ -720,6 +720,28 @@ local flyBV, flyBG
 local flyConn
 
 local flyBtn, flyNoclipBtn
+local collideSnapshot = nil
+
+local function rememberCollide(character)
+	collideSnapshot = {}
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			collideSnapshot[part] = part.CanCollide
+		end
+	end
+end
+
+local function restoreCollide()
+	if not collideSnapshot then
+		return
+	end
+	for part, canCollide in pairs(collideSnapshot) do
+		if part and part.Parent then
+			part.CanCollide = canCollide
+		end
+	end
+	collideSnapshot = nil
+end
 
 local function applyFullbright()
 	if not savedLighting then
@@ -770,6 +792,9 @@ local function stopFly()
 				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 			end)
 		end
+		restoreCollide()
+	else
+		restoreCollide()
 	end
 end
 
@@ -787,6 +812,9 @@ local function startFly(withNoclip)
 
 	flying = true
 	noclipActive = withNoclip and true or false
+	if withNoclip then
+		rememberCollide(character)
+	end
 
 	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 	humanoid.PlatformStand = true
@@ -816,22 +844,22 @@ local function startFly(withNoclip)
 		end
 		local move = Vector3.new()
 		if UIS:IsKeyDown(Enum.KeyCode.W) then
-			move += camera.CFrame.LookVector
+			move = move + camera.CFrame.LookVector
 		end
 		if UIS:IsKeyDown(Enum.KeyCode.S) then
-			move -= camera.CFrame.LookVector
+			move = move - camera.CFrame.LookVector
 		end
 		if UIS:IsKeyDown(Enum.KeyCode.A) then
-			move -= camera.CFrame.RightVector
+			move = move - camera.CFrame.RightVector
 		end
 		if UIS:IsKeyDown(Enum.KeyCode.D) then
-			move += camera.CFrame.RightVector
+			move = move + camera.CFrame.RightVector
 		end
 		if UIS:IsKeyDown(Enum.KeyCode.Space) then
-			move += Vector3.new(0, 1, 0)
+			move = move + Vector3.new(0, 1, 0)
 		end
 		if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-			move -= Vector3.new(0, 1, 0)
+			move = move - Vector3.new(0, 1, 0)
 		end
 		if move.Magnitude > 0 then
 			flyBV.Velocity = move.Unit * speed
@@ -974,7 +1002,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 --------------------------------------------------
--- ESP TAB
+-- ESP TAB  (unified 1-render-loop, no stacked connections)
 --------------------------------------------------
 
 local playerESPEnabled = false
@@ -982,9 +1010,9 @@ local piggyESPEnabled = false
 local enemyESPEnabled = false
 local itemESPEnabled = false
 
-local trackedEnemies = {}
-local trackedItems = {}
-local trackedPiggies = {}
+local trackedEnemies = {} -- [model] = {name=, color=}
+local trackedItems = {} -- [instance] = {name=, color=}
+local trackedPiggies = {} -- [model] = true
 local originalItemNames = {}
 
 local ENEMY_MAPS = { "Forest", "Carnival", "City", "Mall", "Plant" }
@@ -1031,20 +1059,30 @@ local function isPickupItem(obj)
 	return false
 end
 
+local function isGeneratedItemName(name)
+	if type(name) ~= "string" or name == "" or name == "Item" then
+		return true
+	end
+	if name:match("^%-?%d+$") then
+		return true
+	end
+	return false
+end
+
 local function itemDisplayName(item)
 	local cached = originalItemNames[item]
-	if cached and not tostring(cached):match("^%-?%d+$") then
+	if type(cached) == "string" and not isGeneratedItemName(cached) then
 		return cached
 	end
 	local n = item.Name
-	if n and not n:match("^%-?%d+$") then
+	if n and not isGeneratedItemName(n) then
+		originalItemNames[item] = n
 		return n
 	end
-	local sv = item:FindFirstChildWhichIsA("StringValue")
-	if sv and sv.Value ~= "" and not tostring(sv.Value):match("^%-?%d+$") then
-		return sv.Value
+	if type(cached) == "string" and cached ~= "" then
+		return cached
 	end
-	return "Item"
+	return n or "Item"
 end
 
 local function itemColor(item)
@@ -1055,10 +1093,17 @@ local function itemColor(item)
 end
 
 local function cacheItemName(item)
-	if originalItemNames[item] then
+	if not item then
 		return
 	end
-	originalItemNames[item] = item.Name
+	local locked = originalItemNames[item]
+	if type(locked) == "string" and not isGeneratedItemName(locked) then
+		return
+	end
+	local n = item.Name
+	if not isGeneratedItemName(n) then
+		originalItemNames[item] = n
+	end
 end
 
 local function considerItem(obj)
@@ -1093,7 +1138,7 @@ local function scanItems()
 			local sample = math.min(#kids, 6)
 			for i = 1, sample do
 				if isPickupItem(kids[i]) then
-					hits += 1
+					hits = hits + 1
 				end
 			end
 			if hits > 0 then
@@ -1106,6 +1151,48 @@ local function scanItems()
 		end
 	end
 end
+
+local hookedItemFolders = {}
+
+local function trackItemFolderPart(obj)
+	if not obj or not (obj:IsA("Part") or obj:IsA("MeshPart")) then
+		return
+	end
+	cacheItemName(obj)
+	trackedItems[obj] = {
+		name = itemDisplayName(obj),
+		color = itemColor(obj),
+	}
+end
+
+local function scanItemFolderNames()
+	if not itemESPEnabled then
+		return
+	end
+	local itemFolder = workspace:FindFirstChild("ItemFolder")
+	if not itemFolder or itemFolder.Name ~= "ItemFolder" then
+		return
+	end
+	if not hookedItemFolders[itemFolder] then
+		hookedItemFolders[itemFolder] = true
+		itemFolder.DescendantAdded:Connect(function(child)
+			if itemESPEnabled and (child:IsA("Part") or child:IsA("MeshPart")) then
+				trackItemFolderPart(child)
+			end
+		end)
+	end
+	for _, child in ipairs(itemFolder:GetDescendants()) do
+		if child:IsA("Part") or child:IsA("MeshPart") then
+			trackItemFolderPart(child)
+		end
+	end
+end
+
+RunService.Heartbeat:Connect(function()
+	if itemESPEnabled then
+		pcall(scanItemFolderNames)
+	end
+end)
 
 local function scanPiggies()
 	if not piggyESPEnabled then
@@ -1201,6 +1288,7 @@ local itemESPBtn = createButton(ESPScroll, "Item ESP: OFF", function(button)
 end)
 itemESPBtn.TextColor3 = RED
 
+-- Slow scanners (NOT every frame)
 task.spawn(function()
 	while true do
 		if playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled then
@@ -1218,6 +1306,7 @@ task.spawn(function()
 	end
 end)
 
+-- Catch new maps / item dumps without scanning the whole tree every frame
 workspace.ChildAdded:Connect(function(child)
 	if enemyESPEnabled then
 		for _, mapName in ipairs(ENEMY_MAPS) do
@@ -1240,6 +1329,7 @@ workspace.ChildAdded:Connect(function(child)
 	end
 end)
 
+-- Unified ESP render: one loop, reuse tracers, skip work when all ESP off
 RunService.RenderStepped:Connect(function()
 	if not (playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled) then
 		return
@@ -1313,13 +1403,13 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------
--- EXPLOITS TAB
+-- EXPLOITS TAB  (event-driven God Mode / Allies — no per-frame GetDescendants)
 --------------------------------------------------
 
 local godModeEnabled = false
 local alliesNoDamageEnabled = false
-local godTracked = {}
-local alliesTracked = {}
+local godTracked = {} -- [model] = true
+local alliesTracked = {} -- [model] = true
 
 local ALLY_HEADS = {
 	DogHead = true,
@@ -1339,9 +1429,38 @@ local function destroyTouch(obj)
 	if not obj then
 		return
 	end
-	if obj:IsA("TouchTransmitter") or obj.Name == "TouchInterest" then
-		obj:Destroy()
+	local className = ""
+	pcall(function()
+		className = obj.ClassName
+	end)
+	if obj.Name == "TouchInterest" or obj.Name == "TouchTransmitter" or className == "TouchTransmitter" then
+		pcall(function()
+			obj:Destroy()
+		end)
 	end
+end
+
+local function purgeHeadAndRootTouches(model)
+	if not model then
+		return
+	end
+	local enemy = model:FindFirstChild("Enemy")
+	if enemy and enemy:IsA("BoolValue") then
+		enemy.Value = false
+	end
+	local function purgePart(part)
+		if not part or not part:IsA("BasePart") then
+			return
+		end
+		for _, v in ipairs(part:GetChildren()) do
+			destroyTouch(v)
+		end
+		for _, v in ipairs(part:GetDescendants()) do
+			destroyTouch(v)
+		end
+	end
+	purgePart(model:FindFirstChild("Head"))
+	purgePart(model:FindFirstChild("HumanoidRootPart"))
 end
 
 local function neuterModel(model)
@@ -1554,6 +1673,7 @@ task.spawn(function()
 	while true do
 		if godModeEnabled then
 			pcall(scanGodMode)
+			-- light refresh of already-tracked models (Enemy flag only, not full tree every time)
 			local n = 0
 			for model in pairs(godTracked) do
 				if model and model.Parent then
@@ -1564,7 +1684,7 @@ task.spawn(function()
 				else
 					godTracked[model] = nil
 				end
-				n += 1
+				n = n + 1
 				if n % 8 == 0 then
 					task.wait()
 				end
@@ -1582,13 +1702,34 @@ task.spawn(function()
 						enemy.Value = false
 					end
 				end
-				n += 1
+				n = n + 1
 				if n % 8 == 0 then
 					task.wait()
 				end
 			end
 		end
 		task.wait(0.6)
+	end
+end)
+
+RunService.Heartbeat:Connect(function()
+	if godModeEnabled then
+		for model in pairs(godTracked) do
+			if model and model.Parent then
+				purgeHeadAndRootTouches(model)
+			else
+				godTracked[model] = nil
+			end
+		end
+	end
+	if alliesNoDamageEnabled then
+		for model in pairs(alliesTracked) do
+			if model and model.Parent then
+				purgeHeadAndRootTouches(model)
+			else
+				alliesTracked[model] = nil
+			end
+		end
 	end
 end)
 
@@ -1660,25 +1801,41 @@ miscWip.TextWrapped = true
 -- SCRIPTS TAB
 --------------------------------------------------
 
-local function runRemote(url, label)
-	task.spawn(function()
-		local scriptContent = safeHttpGet(url)
-		if not scriptContent then
-			logError((label or "Script") .. " HTTP request failed.")
-			return
+local function httpGet(url)
+	local ok, result = pcall(function()
+		if game.HttpGet then
+			return game:HttpGet(url)
 		end
-
-		local compiledFunc, compileErr = safeLoadString(scriptContent, label)
-		if not compiledFunc then
-			logError((label or "Script") .. " compile failed: " .. tostring(compileErr))
-			return
+		if game.HttpGetAsync then
+			return game:HttpGetAsync(url)
 		end
-
-		local runSuccess, runError = pcall(compiledFunc)
-		if not runSuccess then
-			logError((label or "Script") .. " execution error: " .. tostring(runError))
-		end
+		return nil
 	end)
+	if ok and type(result) == "string" and #result > 50 then
+		return result
+	end
+	return nil
+end
+
+local function runRemote(url, label)
+	local body = httpGet(url)
+	if not body then
+		logError((label or "Script") .. " download failed (HttpGet returned nil)")
+		return
+	end
+	if not loadstring then
+		logError((label or "Script") .. " failed: loadstring is not available")
+		return
+	end
+	local fn, compileErr = loadstring(body)
+	if not fn then
+		logError((label or "Script") .. " compile failed: " .. tostring(compileErr))
+		return
+	end
+	local ok, err = pcall(fn)
+	if not ok then
+		logError((label or "Script") .. " failed: " .. tostring(err))
+	end
 end
 
 createButton(ScriptsScroll, "Infinite Yield", function()
