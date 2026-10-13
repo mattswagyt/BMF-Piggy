@@ -1,5 +1,5 @@
 -- BMF Menu - Piggy (Book 1)
--- Fully remade UI (Squid Game X layout) + lag-free ESP / God Mode / Allies
+-- Fully remade UI
 -- V2.0.1 | Made by BMF!
 -- PASTE THIS ENTIRE FILE into your executor. Do NOT wrap it in loadstring(game:HttpGet(...)).
 
@@ -764,6 +764,13 @@ local flyBtn, flyNoclipBtn
 local collideSnapshot = nil
 local mrPHoldCF = nil
 
+local SAFE_ROOM_POS = Vector3.new(-375, -4, -83)
+
+local function isAtSafeRoom(cf)
+	if not cf then return false end
+	return (cf.Position - SAFE_ROOM_POS).Magnitude < 5
+end
+
 local function rememberCollide(character)
 	collideSnapshot = {}
 	for _, part in ipairs(character:GetDescendants()) do
@@ -837,7 +844,9 @@ local function stopFly()
 		restoreCollide()
 		local hrp = character:FindFirstChild("HumanoidRootPart")
 		if hrp then
-			mrPHoldCF = hrp.CFrame
+			if not isAtSafeRoom(hrp.CFrame) then
+				mrPHoldCF = hrp.CFrame
+			end
 		end
 	else
 		restoreCollide()
@@ -858,7 +867,9 @@ local function startFly(withNoclip)
 
 	flying = true
 	noclipActive = withNoclip and true or false
-	mrPHoldCF = hrp.CFrame
+	if not isAtSafeRoom(hrp.CFrame) then
+		mrPHoldCF = hrp.CFrame
+	end
 
 	if withNoclip then
 		rememberCollide(character)
@@ -915,6 +926,9 @@ local function startFly(withNoclip)
 			flyBV.Velocity = Vector3.new(0, 0, 0)
 		end
 		flyBG.CFrame = camera.CFrame
+		if not isAtSafeRoom(hrp.CFrame) then
+			mrPHoldCF = hrp.CFrame
+		end
 	end)
 end
 
@@ -1069,6 +1083,9 @@ local function detectEnemyInfo(model)
 	if not model or not model:IsA("Model") then
 		return nil
 	end
+	if model.Name == "Mr. P" or model.Name == "MrP" or model:FindFirstChild("Projectiles") or model:FindFirstChild("MrPHead", true) or model:FindFirstChild("MrP", true) then
+		return "Mr. P", Color3.fromRGB(128, 0, 128)
+	end
 	if model:FindFirstChild("DogHead", true) then
 		return "Doggy", Color3.fromRGB(139, 69, 19)
 	end
@@ -1080,9 +1097,6 @@ local function detectEnemyInfo(model)
 	end
 	if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
 		return "Mousy", Color3.fromRGB(255, 255, 102)
-	end
-	if model:FindFirstChild("Projectiles") then
-		return "Mr. P", Color3.fromRGB(128, 0, 128)
 	end
 	return nil
 end
@@ -1260,6 +1274,7 @@ local function scanEnemies()
 	if not enemyESPEnabled then
 		return
 	end
+
 	for _, mapName in ipairs(ENEMY_MAPS) do
 		local map = workspace:FindFirstChild(mapName)
 		if map then
@@ -1269,6 +1284,27 @@ local function scanEnemies()
 					if name then
 						trackedEnemies[obj] = { name = name, color = color }
 					end
+				end
+			end
+		end
+	end
+
+	for _, obj in ipairs(workspace:GetChildren()) do
+		if obj:IsA("Model") then
+			local name, color = detectEnemyInfo(obj)
+			if name then
+				trackedEnemies[obj] = { name = name, color = color }
+			end
+		end
+	end
+
+	local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+	if piggyFolder then
+		for _, obj in ipairs(piggyFolder:GetChildren()) do
+			if obj:IsA("Model") then
+				local name, color = detectEnemyInfo(obj)
+				if name then
+					trackedEnemies[obj] = { name = name, color = color }
 				end
 			end
 		end
@@ -1360,6 +1396,11 @@ workspace.ChildAdded:Connect(function(child)
 					pcall(scanEnemies)
 				end)
 			end
+		end
+		if child.Name == "PiggyNPC" or child.Name == "Mr. P" or child.Name == "Plant" then
+			task.delay(0.3, function()
+				pcall(scanEnemies)
+			end)
 		end
 	end
 	if piggyESPEnabled and child.Name == "PiggyNPC" then
@@ -1464,6 +1505,7 @@ local godTracked = {}
 local alliesTracked = {}
 local godShieldPart = nil
 local mapNoCollisionMap = {}
+local lastShieldCheck = 0
 
 local ALLY_HEADS = {
 	DogHead = true,
@@ -1499,7 +1541,7 @@ local function isEnemyModelOrPart(instance)
 		return true
 	end
 
-	if model.Name == "Mr. P" or model:FindFirstChild("Projectiles") then
+	if model.Name == "Mr. P" or model.Name == "MrP" or model:FindFirstChild("Projectiles") then
 		return true
 	end
 
@@ -1597,27 +1639,31 @@ local function updateGodShield()
 			godShieldPart.CFrame = hrp.CFrame
 		end
 
-		local overlapParams = OverlapParams.new()
-		overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-		overlapParams.FilterDescendantsInstances = { char }
-		overlapParams.MaxParts = 50
+		local now = os.clock()
+		if now - lastShieldCheck > 0.35 then
+			lastShieldCheck = now
+			local overlapParams = OverlapParams.new()
+			overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+			overlapParams.FilterDescendantsInstances = { char }
+			overlapParams.MaxParts = 40
 
-		local nearbyParts = workspace:GetPartsInPart(godShieldPart, overlapParams)
-		for _, nearby in ipairs(nearbyParts) do
-			if nearby:IsA("BasePart") and nearby ~= godShieldPart then
-				if isEnemyModelOrPart(nearby) then
-					nearby.CanCollide = true
-					applyEnemyCollisionSetup(nearby:FindFirstAncestorOfClass("Model"))
-				else
-					if not mapNoCollisionMap[nearby] then
-						mapNoCollisionMap[nearby] = true
-						pcall(function()
-							local ncc = Instance.new("NoCollisionConstraint")
-							ncc.Name = "BMF_ShieldMapNoCollide"
-							ncc.Part0 = godShieldPart
-							ncc.Part1 = nearby
-							ncc.Parent = godShieldPart
-						end)
+			local nearbyParts = workspace:GetPartsInPart(godShieldPart, overlapParams)
+			for _, nearby in ipairs(nearbyParts) do
+				if nearby:IsA("BasePart") and nearby ~= godShieldPart then
+					if isEnemyModelOrPart(nearby) then
+						nearby.CanCollide = true
+						applyEnemyCollisionSetup(nearby:FindFirstAncestorOfClass("Model"))
+					else
+						if not mapNoCollisionMap[nearby] then
+							mapNoCollisionMap[nearby] = true
+							pcall(function()
+								local ncc = Instance.new("NoCollisionConstraint")
+								ncc.Name = "BMF_ShieldMapNoCollide"
+								ncc.Part0 = godShieldPart
+								ncc.Part1 = nearby
+								ncc.Parent = godShieldPart
+							end)
+						end
 					end
 				end
 			end
@@ -2006,23 +2052,22 @@ local function desyncFromMrP(model)
 	if not myHRP then
 		return
 	end
-	if flying then
-		mrPHoldCF = myHRP.CFrame
+
+	local current = myHRP.CFrame
+	if not isAtSafeRoom(current) then
+		mrPHoldCF = current
 		pcall(function()
 			mrPHoldVel = myHRP.AssemblyLinearVelocity
 			mrPHoldAng = myHRP.AssemblyAngularVelocity
 		end)
+	end
+
+	if flying then
 		return
 	end
-	local current = myHRP.CFrame
-	mrPHoldCF = current
-	pcall(function()
-		mrPHoldVel = myHRP.AssemblyLinearVelocity
-		mrPHoldAng = myHRP.AssemblyAngularVelocity
-	end)
 
-	local fake = CFrame.new(-375, -4, -83)
-	myHRP.CFrame = fake
+	local fake = SAFE_ROOM_POS
+	myHRP.CFrame = CFrame.new(fake)
 	pcall(function()
 		myHRP.AssemblyLinearVelocity = Vector3.zero
 		myHRP.AssemblyAngularVelocity = Vector3.zero
@@ -2101,13 +2146,21 @@ RunService.Stepped:Connect(function()
 	mrPSpoofPending = false
 end)
 
-LocalPlayer.CharacterAdded:Connect(function()
+LocalPlayer.CharacterAdded:Connect(function(char)
 	mrPHoldCF = nil
 	mrPHoldVel = nil
 	mrPHoldAng = nil
 	mrPSpoofPending = false
 	mrPModel = nil
 	removeGodShield()
+
+	char.ChildAdded:Connect(function(child)
+		if godModeEnabled and child.Name == "Health" then
+			pcall(function()
+				child:Destroy()
+			end)
+		end
+	end)
 end)
 
 task.spawn(function()
