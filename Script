@@ -1461,8 +1461,8 @@ local function updateGodShield()
 		part.Massless = true
 		part.Anchored = false
 		part.CanTouch = true
-		part.CanQuery = true
-		part.CanCollide = not noclipActive
+		part.CanQuery = false
+		part.CanCollide = false
 		part.CastShadow = false
 		part.TopSurface = Enum.SurfaceType.Smooth
 		part.BottomSurface = Enum.SurfaceType.Smooth
@@ -1489,7 +1489,8 @@ local function updateGodShield()
 	end
 
 	if godShieldPart and godShieldPart.Parent then
-		godShieldPart.CanCollide = not noclipActive
+		godShieldPart.CanCollide = false
+		godShieldPart.CanQuery = false
 		if (godShieldPart.Position - hrp.Position).Magnitude > 10 then
 			godShieldPart.CFrame = hrp.CFrame
 		end
@@ -1796,6 +1797,10 @@ local function applyMrPHold()
 	if not hrp then
 		return
 	end
+	if flying then
+		mrPHoldCF = hrp.CFrame
+		return
+	end
 	hrp.CFrame = mrPHoldCF
 	if mrPHoldVel then
 		pcall(function()
@@ -1871,6 +1876,14 @@ end
 local function desyncFromMrP(model)
 	local myHRP = getLocalHRP()
 	if not myHRP then
+		return
+	end
+	if flying then
+		mrPHoldCF = myHRP.CFrame
+		pcall(function()
+			mrPHoldVel = myHRP.AssemblyLinearVelocity
+			mrPHoldAng = myHRP.AssemblyAngularVelocity
+		end)
 		return
 	end
 	local current = myHRP.CFrame
