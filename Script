@@ -16,7 +16,6 @@ local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
-local PhysicsService = pcall(function() return game:GetService("PhysicsService") end) and game:GetService("PhysicsService") or nil
 
 local LocalPlayer = Players.LocalPlayer
 while not LocalPlayer do
@@ -24,19 +23,6 @@ while not LocalPlayer do
 	LocalPlayer = Players.LocalPlayer
 end
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-
---------------------------------------------------
--- COLLISION GROUPS SETUP
---------------------------------------------------
-
-pcall(function()
-	if PhysicsService then
-		PhysicsService:RegisterCollisionGroup("BMF_ShieldGroup")
-		PhysicsService:RegisterCollisionGroup("BMF_EnemyGroup")
-		PhysicsService:CollisionGroupSetCollidable("BMF_ShieldGroup", "Default", false)
-		PhysicsService:CollisionGroupSetCollidable("BMF_ShieldGroup", "BMF_EnemyGroup", true)
-	end
-end)
 
 --------------------------------------------------
 -- THEME & COLORS
@@ -572,6 +558,18 @@ local function getPiggyPlayerName()
 	return nil
 end
 
+local function cleanBotName(rawName)
+	if type(rawName) ~= "string" or rawName == "" then
+		return "Piggy"
+	end
+	local clean = rawName:gsub("Bot", ""):gsub("NPC", ""):gsub("bot", ""):gsub("npc", "")
+	clean = clean:match("^%s*(.-)%s*$")
+	if clean == "" then
+		return "Piggy"
+	end
+	return clean
+end
+
 --------------------------------------------------
 -- HOME TAB
 --------------------------------------------------
@@ -1095,7 +1093,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 --------------------------------------------------
--- ESP TAB (Optimized, Unified Background Scanner)
+-- ESP TAB (Optimized, Re-ordered Detection Logic)
 --------------------------------------------------
 
 local playerESPEnabled = false
@@ -1110,7 +1108,7 @@ local trackedPiggies = {}
 local trackedAllies = {}
 local originalItemNames = {}
 
-local ENEMY_MAPS = { "Forest", "Carnival", "City", "Mall", "Plant", "Outpost", "House", "Station", "Gallery", "School", "Hospital", "Metro" }
+local TARGET_MAP_NAMES = { "Forest", "Carnival", "City", "Mall", "Outpost", "Plant" }
 
 local function detectEnemyInfo(model)
 	if not model or not model:IsA("Model") then
@@ -1124,7 +1122,7 @@ local function detectEnemyInfo(model)
 		return nil
 	end
 
-	-- Exclude Allies explicitly from Enemy ESP
+	-- Ignore Allies explicitly from Enemy ESP
 	if model:FindFirstChild("GeorgieHead", true) 
 		or model:FindFirstChild("BunnyHead", true) 
 		or model:FindFirstChild("ZizzyHead", true) 
@@ -1132,22 +1130,19 @@ local function detectEnemyInfo(model)
 		return nil
 	end
 
-	-- Check Mr. P (Plant Map / Workspace)
-	local nameLower = string.lower(model.Name)
-	local isMrPName = (nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p")
-	local hasMrPStuff = (model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady") or model:FindFirstChild("NPCScript") or model:FindFirstChild("Animations"))
-	if (isMrPName or hasMrPStuff) and (model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Enemy") or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady")) then
-		return "Mr. P", PURPLE
+	-- CHECK SPECIFIC ENEMY HEAD MESHES FIRST (Prevents Foxy, Grandmother, Mousy from being flagged as Mr. P)
+	if model:FindFirstChild("FoxyHead", true) then
+		return "Foxy", ORANGE
+	end
+	if model:FindFirstChild("PiggyHead", true) then
+		return "Grandmother", DARK_BLUE
+	end
+	if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
+		return "Mousy", BANANA
 	end
 
-	-- For all other NPC enemies, REQUIRE an "Enemy" BoolValue so buildings, doors, and safes are ignored
-	local enemyVal = model:FindFirstChild("Enemy")
-	if not (enemyVal and enemyVal:IsA("BoolValue") and enemyVal.Value == true) then
-		return nil
-	end
-
-	-- Soldier NPC in Outpost
-	if workspace:FindFirstChild("Outpost") then
+	-- Outpost Soldier Check
+	if workspace:FindFirstChild("Outpost") or model:IsDescendantOf(workspace:FindFirstChild("Outpost") or workspace) then
 		local helmet = model:FindFirstChild("SoldierHelmet")
 		local soldierNPC = model:FindFirstChild("SoldierNPC")
 		if helmet and helmet:IsA("BasePart") and soldierNPC and soldierNPC:IsA("BoolValue") and soldierNPC.Value == true then
@@ -1155,18 +1150,24 @@ local function detectEnemyInfo(model)
 		end
 	end
 
-	-- Specific Enemy Heads
-	if model:FindFirstChild("FoxyHead", true) then
-		return "Foxy", ORANGE
-	end
+	-- Doggy Enemy Check (Only if Enemy.Value is true)
 	if model:FindFirstChild("DogHead", true) then
-		return "Doggy", BROWN
+		local enemyVal = model:FindFirstChild("Enemy")
+		if enemyVal and enemyVal:IsA("BoolValue") and enemyVal.Value == true then
+			return "Doggy", BROWN
+		end
 	end
-	if model:FindFirstChild("PiggyHead", true) then
-		return "Grandmother", DARK_BLUE
-	end
-	if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
-		return "Mousy", BANANA
+
+	-- STRICT MR. P CHECK (Checked ONLY after verifying model is not another NPC enemy or Ally)
+	local nameLower = string.lower(model.Name)
+	local isMrPName = (nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p")
+	local plantFolder = workspace:FindFirstChild("Plant")
+	local isPlantDescendant = plantFolder and model:IsDescendantOf(plantFolder)
+
+	if isMrPName or (isPlantDescendant and (model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady"))) then
+		if not model:FindFirstChild("GeorgieHead", true) and (model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Enemy") or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady")) then
+			return "Mr. P", PURPLE
+		end
 	end
 
 	return nil
@@ -1327,7 +1328,7 @@ local function scanPiggies()
 	for _, piggy in ipairs(folder:GetChildren()) do
 		if piggy:IsA("Model") then
 			trackedPiggies[piggy] = {
-				name = piggy.Name,
+				name = cleanBotName(piggy.Name),
 				color = RED
 			}
 		end
@@ -1339,28 +1340,14 @@ local function scanEnemies()
 		return
 	end
 
-	local plant = workspace:FindFirstChild("Plant")
-	if plant then
-		for _, desc in ipairs(plant:GetDescendants()) do
-			if desc:IsA("Model") then
-				local name, color = detectEnemyInfo(desc)
-				if name then
-					trackedEnemies[desc] = { name = name, color = color }
-				end
-			end
-		end
-	end
-
-	for _, mapName in ipairs(ENEMY_MAPS) do
-		if mapName ~= "Plant" then
-			local map = workspace:FindFirstChild(mapName)
-			if map then
-				for _, obj in ipairs(map:GetDescendants()) do
-					if obj:IsA("Model") then
-						local name, color = detectEnemyInfo(obj)
-						if name then
-							trackedEnemies[obj] = { name = name, color = color }
-						end
+	for _, mapName in ipairs(TARGET_MAP_NAMES) do
+		local mapFolder = workspace:FindFirstChild(mapName)
+		if mapFolder then
+			for _, desc in ipairs(mapFolder:GetDescendants()) do
+				if desc:IsA("Model") then
+					local name, color = detectEnemyInfo(desc)
+					if name then
+						trackedEnemies[desc] = { name = name, color = color }
 					end
 				end
 			end
@@ -1382,14 +1369,14 @@ local function scanAlliesESP()
 		return
 	end
 
-	for _, mapName in ipairs(ENEMY_MAPS) do
-		local map = workspace:FindFirstChild(mapName)
-		if map then
-			for _, obj in ipairs(map:GetDescendants()) do
-				if obj:IsA("Model") then
-					local name, color = detectAllyInfo(obj)
+	for _, mapName in ipairs(TARGET_MAP_NAMES) do
+		local mapFolder = workspace:FindFirstChild(mapName)
+		if mapFolder then
+			for _, desc in ipairs(mapFolder:GetDescendants()) do
+				if desc:IsA("Model") then
+					local name, color = detectAllyInfo(desc)
 					if name then
-						trackedAllies[obj] = { name = name, color = color }
+						trackedAllies[desc] = { name = name, color = color }
 					end
 				end
 			end
@@ -1483,18 +1470,10 @@ itemESPBtn.TextColor3 = RED
 task.spawn(function()
 	while true do
 		if playerESPEnabled or piggyESPEnabled or enemyESPEnabled or allyESPEnabled or itemESPEnabled then
-			if piggyESPEnabled then
-				pcall(scanPiggies)
-			end
-			if enemyESPEnabled then
-				pcall(scanEnemies)
-			end
-			if allyESPEnabled then
-				pcall(scanAlliesESP)
-			end
-			if itemESPEnabled then
-				pcall(scanItems)
-			end
+			if piggyESPEnabled then pcall(scanPiggies) end
+			if enemyESPEnabled then pcall(scanEnemies) end
+			if allyESPEnabled then pcall(scanAlliesESP) end
+			if itemESPEnabled then pcall(scanItems) end
 		end
 		task.wait(0.75)
 	end
@@ -1603,16 +1582,13 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------
--- EXPLOITS TAB
+-- EXPLOITS TAB (God Mode shield removed completely)
 --------------------------------------------------
 
 local godModeEnabled = false
 local alliesNoDamageEnabled = false
 local godTracked = {}
 local alliesTracked = {}
-local godShieldPart = nil
-local mapNoCollisionMap = {}
-local lastShieldCheck = 0
 
 local ALLY_HEADS = {
 	DogHead = true,
@@ -1627,158 +1603,6 @@ local GOD_MAPS = {
 	{ name = "Carnival", head = "FoxyHead", grandmother = false },
 	{ name = "Forest", head = "DogHead", grandmother = false },
 }
-
-local function removeGodShield()
-	mapNoCollisionMap = {}
-	if godShieldPart then
-		pcall(function()
-			godShieldPart:Destroy()
-		end)
-		godShieldPart = nil
-	end
-end
-
-local function isEnemyModelOrPart(instance)
-	if not instance then return false end
-	local model = instance:IsA("Model") and instance or instance:FindFirstAncestorOfClass("Model")
-	if not model then return false end
-
-	local piggyFolder = workspace:FindFirstChild("PiggyNPC")
-	if piggyFolder and model:IsDescendantOf(piggyFolder) then
-		return true
-	end
-
-	local nameLower = string.lower(model.Name)
-	if (nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p" or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady"))
-		and not model:FindFirstChild("GeorgieHead", true) then
-		return true
-	end
-
-	local plr = Players:GetPlayerFromCharacter(model)
-	if plr and plr ~= LocalPlayer then
-		if isEnemyCharacter(model) or isTraitorPlayer(plr, model) then
-			return true
-		end
-	end
-
-	if detectEnemyInfo(model) then
-		return true
-	end
-
-	return false
-end
-
-local function applyEnemyCollisionSetup(model)
-	if not model then return end
-	for _, part in ipairs(model:GetDescendants()) do
-		if part:IsA("BasePart") then
-			part.CanCollide = true
-			pcall(function()
-				if PhysicsService then
-					part.CollisionGroup = "BMF_EnemyGroup"
-				end
-			end)
-		end
-	end
-end
-
-local function updateGodShield()
-	if not godModeEnabled then
-		removeGodShield()
-		return
-	end
-	local char = LocalPlayer.Character
-	if not char then
-		removeGodShield()
-		return
-	end
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not hrp:IsA("BasePart") then
-		removeGodShield()
-		return
-	end
-
-	if not godShieldPart or not godShieldPart.Parent then
-		local part = Instance.new("Part")
-		part.Name = "BMF_GodShield"
-		part.Size = Vector3.new(7, 8, 7)
-		part.Transparency = 1
-		part.Material = Enum.Material.SmoothPlastic
-		part.Massless = true
-		part.Anchored = false
-		part.CanTouch = true
-		part.CanQuery = false
-		part.CanCollide = true
-		part.CastShadow = false
-		part.TopSurface = Enum.SurfaceType.Smooth
-		part.BottomSurface = Enum.SurfaceType.Smooth
-		part.CFrame = hrp.CFrame
-		part.Parent = char
-
-		pcall(function()
-			if PhysicsService then
-				part.CollisionGroup = "BMF_ShieldGroup"
-			end
-		end)
-
-		for _, v in ipairs(char:GetDescendants()) do
-			if v:IsA("BasePart") and v ~= part then
-				pcall(function()
-					local ncc = Instance.new("NoCollisionConstraint")
-					ncc.Part0 = part
-					ncc.Part1 = v
-					ncc.Parent = part
-				end)
-			end
-		end
-
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = hrp
-		weld.Part1 = part
-		weld.Parent = part
-
-		godShieldPart = part
-	end
-
-	if godShieldPart and godShieldPart.Parent then
-		godShieldPart.CanCollide = true
-		godShieldPart.CanQuery = false
-
-		if (godShieldPart.Position - hrp.Position).Magnitude > 10 then
-			godShieldPart.CFrame = hrp.CFrame
-		end
-
-		local now = os.clock()
-		if now - lastShieldCheck > 0.35 then
-			lastShieldCheck = now
-			local overlapParams = OverlapParams.new()
-			overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-			overlapParams.FilterDescendantsInstances = { char }
-			overlapParams.MaxParts = 40
-
-			local nearbyParts = workspace:GetPartsInPart(godShieldPart, overlapParams)
-			for _, nearby in ipairs(nearbyParts) do
-				if nearby:IsA("BasePart") and nearby ~= godShieldPart then
-					if isEnemyModelOrPart(nearby) then
-						nearby.CanCollide = true
-						applyEnemyCollisionSetup(nearby:FindFirstAncestorOfClass("Model"))
-					else
-						if not mapNoCollisionMap[nearby] then
-							mapNoCollisionMap[nearby] = true
-							pcall(function()
-								local ncc = Instance.new("NoCollisionConstraint")
-								ncc.Name = "BMF_ShieldMapNoCollide"
-								ncc.Part0 = godShieldPart
-								ncc.Part1 = nearby
-								ncc.Parent = godShieldPart
-							end)
-						end
-					end
-				end
-			end
-		end
-	end
-end
 
 local function applyGodModeSelf()
 	if not godModeEnabled then
@@ -1800,10 +1624,7 @@ local function applyGodModeSelf()
 	if hrp and hrp:IsA("BasePart") then
 		hrp.CanTouch = false
 		hrp.CanQuery = false
-		hrp.CanCollide = false
 	end
-
-	updateGodShield()
 end
 
 local function destroyTouch(obj)
@@ -2040,8 +1861,6 @@ local godBtn = createButton(ExploitsScroll, "God Mode: OFF", function(button)
 	if godModeEnabled then
 		scanGodMode()
 		applyGodModeSelf()
-	else
-		removeGodShield()
 	end
 end)
 godBtn.TextColor3 = RED
@@ -2120,7 +1939,6 @@ end
 local function findMrPModel(plant)
 	for _, desc in ipairs(plant:GetDescendants()) do
 		if desc:IsA("Model") then
-			-- EXCLUDE GEORGIE FROM MR. P NEUTER SCAN
 			if desc:FindFirstChild("GeorgieHead", true) then
 				continue
 			end
@@ -2241,7 +2059,6 @@ LocalPlayer.CharacterAdded:Connect(function(char)
 	mrPHoldAng = nil
 	mrPSpoofPending = false
 	mrPModel = nil
-	removeGodShield()
 
 	char.ChildAdded:Connect(function(child)
 		if godModeEnabled and child.Name == "Health" then
