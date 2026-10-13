@@ -16,12 +16,27 @@ local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
+local PhysicsService = pcall(function() return game:GetService("PhysicsService") end) and game:GetService("PhysicsService") or nil
+
 local LocalPlayer = Players.LocalPlayer
 while not LocalPlayer do
 	task.wait()
 	LocalPlayer = Players.LocalPlayer
 end
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+--------------------------------------------------
+-- COLLISION GROUPS SETUP
+--------------------------------------------------
+
+pcall(function()
+	if PhysicsService then
+		PhysicsService:RegisterCollisionGroup("BMF_ShieldGroup")
+		PhysicsService:RegisterCollisionGroup("BMF_EnemyGroup")
+		PhysicsService:CollisionGroupSetCollidable("BMF_ShieldGroup", "Default", false)
+		PhysicsService:CollisionGroupSetCollidable("BMF_ShieldGroup", "BMF_EnemyGroup", true)
+	end
+end)
 
 --------------------------------------------------
 -- THEME
@@ -314,6 +329,25 @@ local function logError(msg)
 end
 
 --------------------------------------------------
+-- GAME MAP CHECKER FOR TRACERS
+--------------------------------------------------
+
+local GAME_MAP_NAMES = {
+	"House", "Station", "Gallery", "Forest", "School",
+	"Hospital", "Metro", "Carnival", "City", "Mall",
+	"Outpost", "Plant"
+}
+
+local function isInGameRound()
+	for _, mapName in ipairs(GAME_MAP_NAMES) do
+		if workspace:FindFirstChild(mapName) then
+			return true
+		end
+	end
+	return false
+end
+
+--------------------------------------------------
 -- LAG-FREE ESP CORE (single render loop, reused drawings)
 --------------------------------------------------
 
@@ -381,18 +415,27 @@ local function updateTracer(target, color, tagKey)
 	if not DrawingAvailable then
 		return
 	end
-	if not ESP_Tracers[tagKey] then
-		local ok, line = pcall(function()
-			return Drawing.new("Line")
-		end)
-		if not ok or not line then
-			return
+	local line = ESP_Tracers[tagKey]
+
+	if not isInGameRound() then
+		if line then
+			line.Visible = false
 		end
-		line.Thickness = 2
-		ESP_Tracers[tagKey] = line
+		return
 	end
 
-	local line = ESP_Tracers[tagKey]
+	if not line then
+		local ok, newLine = pcall(function()
+			return Drawing.new("Line")
+		end)
+		if not ok or not newLine then
+			return
+		end
+		newLine.Thickness = 2
+		ESP_Tracers[tagKey] = newLine
+		line = newLine
+	end
+
 	local camera = workspace.CurrentCamera
 	local worldPos = getWorldPosition(target)
 
@@ -1236,7 +1279,7 @@ local function wipePlayerESP(char, playerName)
 	if not char then
 		return
 	end
-	clearESPOn(char, "BMF_Player_Highlight", "player_" .. (playerName or char.Name))
+	clearESPOn(char, "BMF_Highlight", "player_" .. (playerName or char.Name))
 end
 
 local playerESPBtn = createButton(ESPScroll, "Player ESP: OFF", function(button)
@@ -1255,7 +1298,7 @@ local piggyESPBtn = createButton(ESPScroll, "Piggy ESP: OFF", function(button)
 	setToggleVisual(button, piggyESPEnabled, "Piggy ESP: ON", "Piggy ESP: OFF")
 	if not piggyESPEnabled then
 		for piggy in pairs(trackedPiggies) do
-			clearESPOn(piggy, "BMF_Piggy_Highlight", "piggy_" .. tostring(piggy))
+			clearESPOn(piggy, "BMF_Highlight", "piggy_" .. tostring(piggy))
 		end
 		trackedPiggies = {}
 	else
@@ -1269,7 +1312,7 @@ local enemyESPBtn = createButton(ESPScroll, "Enemy ESP: OFF", function(button)
 	setToggleVisual(button, enemyESPEnabled, "Enemy ESP: ON", "Enemy ESP: OFF")
 	if not enemyESPEnabled then
 		for model in pairs(trackedEnemies) do
-			clearESPOn(model, "BMF_Enemy_Highlight", "enemy_" .. tostring(model))
+			clearESPOn(model, "BMF_Highlight", "enemy_" .. tostring(model))
 		end
 		trackedEnemies = {}
 	else
@@ -1283,7 +1326,7 @@ local itemESPBtn = createButton(ESPScroll, "Item ESP: OFF", function(button)
 	setToggleVisual(button, itemESPEnabled, "Item ESP: ON", "Item ESP: OFF")
 	if not itemESPEnabled then
 		for item in pairs(trackedItems) do
-			clearESPOn(item, "BMF_Item_Highlight", "item_" .. tostring(item))
+			clearESPOn(item, "BMF_Highlight", "item_" .. tostring(item))
 		end
 		trackedItems = {}
 	else
@@ -1336,6 +1379,14 @@ RunService.RenderStepped:Connect(function()
 		return
 	end
 
+	if not isInGameRound() then
+		for tagKey, line in pairs(ESP_Tracers) do
+			if line then
+				line.Visible = false
+			end
+		end
+	end
+
 	if playerESPEnabled then
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if plr ~= LocalPlayer then
@@ -1350,7 +1401,7 @@ RunService.RenderStepped:Connect(function()
 						color = RED
 						label = "TRAITOR"
 					end
-					highlightTarget(char, color, "BMF_Player_Highlight")
+					highlightTarget(char, color, "BMF_Highlight")
 					updateTracer(char, color, "player_" .. plr.Name)
 					updateNameTag(char, label, color)
 				else
@@ -1363,7 +1414,7 @@ RunService.RenderStepped:Connect(function()
 	if piggyESPEnabled then
 		for piggy in pairs(trackedPiggies) do
 			if piggy and piggy.Parent then
-				highlightTarget(piggy, RED, "BMF_Piggy_Highlight")
+				highlightTarget(piggy, RED, "BMF_Highlight")
 				updateTracer(piggy, RED, "piggy_" .. tostring(piggy))
 				updateNameTag(piggy, "Piggy", RED)
 			else
@@ -1376,7 +1427,7 @@ RunService.RenderStepped:Connect(function()
 	if enemyESPEnabled then
 		for model, info in pairs(trackedEnemies) do
 			if model and model.Parent then
-				highlightTarget(model, info.color, "BMF_Enemy_Highlight")
+				highlightTarget(model, info.color, "BMF_Highlight")
 				updateTracer(model, info.color, "enemy_" .. tostring(model))
 				updateNameTag(model, info.name, info.color)
 			else
@@ -1391,7 +1442,7 @@ RunService.RenderStepped:Connect(function()
 			if item and item.Parent then
 				local col = itemColor(item)
 				local name = itemDisplayName(item)
-				highlightTarget(item, col, "BMF_Item_Highlight")
+				highlightTarget(item, col, "BMF_Highlight")
 				updateTracer(item, col, "item_" .. tostring(item))
 				updateNameTag(item, name, col)
 			else
@@ -1412,6 +1463,7 @@ local alliesNoDamageEnabled = false
 local godTracked = {}
 local alliesTracked = {}
 local godShieldPart = nil
+local mapNoCollisionMap = {}
 
 local ALLY_HEADS = {
 	DogHead = true,
@@ -1428,11 +1480,54 @@ local GOD_MAPS = {
 }
 
 local function removeGodShield()
+	mapNoCollisionMap = {}
 	if godShieldPart then
 		pcall(function()
 			godShieldPart:Destroy()
 		end)
 		godShieldPart = nil
+	end
+end
+
+local function isEnemyModelOrPart(instance)
+	if not instance then return false end
+	local model = instance:IsA("Model") and instance or instance:FindFirstAncestorOfClass("Model")
+	if not model then return false end
+
+	local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+	if piggyFolder and model:IsDescendantOf(piggyFolder) then
+		return true
+	end
+
+	if model.Name == "Mr. P" or model:FindFirstChild("Projectiles") then
+		return true
+	end
+
+	local plr = Players:GetPlayerFromCharacter(model)
+	if plr and plr ~= LocalPlayer then
+		if isEnemyCharacter(model) or isTraitorPlayer(plr, model) then
+			return true
+		end
+	end
+
+	if detectEnemyInfo(model) then
+		return true
+	end
+
+	return false
+end
+
+local function applyEnemyCollisionSetup(model)
+	if not model then return end
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = true
+			pcall(function()
+				if PhysicsService then
+					part.CollisionGroup = "BMF_EnemyGroup"
+				end
+			end)
+		end
 	end
 end
 
@@ -1462,12 +1557,18 @@ local function updateGodShield()
 		part.Anchored = false
 		part.CanTouch = true
 		part.CanQuery = false
-		part.CanCollide = false
+		part.CanCollide = true
 		part.CastShadow = false
 		part.TopSurface = Enum.SurfaceType.Smooth
 		part.BottomSurface = Enum.SurfaceType.Smooth
 		part.CFrame = hrp.CFrame
 		part.Parent = char
+
+		pcall(function()
+			if PhysicsService then
+				part.CollisionGroup = "BMF_ShieldGroup"
+			end
+		end)
 
 		for _, v in ipairs(char:GetDescendants()) do
 			if v:IsA("BasePart") and v ~= part then
@@ -1489,10 +1590,37 @@ local function updateGodShield()
 	end
 
 	if godShieldPart and godShieldPart.Parent then
-		godShieldPart.CanCollide = false
+		godShieldPart.CanCollide = true
 		godShieldPart.CanQuery = false
+
 		if (godShieldPart.Position - hrp.Position).Magnitude > 10 then
 			godShieldPart.CFrame = hrp.CFrame
+		end
+
+		local overlapParams = OverlapParams.new()
+		overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+		overlapParams.FilterDescendantsInstances = { char }
+		overlapParams.MaxParts = 50
+
+		local nearbyParts = workspace:GetPartsInPart(godShieldPart, overlapParams)
+		for _, nearby in ipairs(nearbyParts) do
+			if nearby:IsA("BasePart") and nearby ~= godShieldPart then
+				if isEnemyModelOrPart(nearby) then
+					nearby.CanCollide = true
+					applyEnemyCollisionSetup(nearby:FindFirstAncestorOfClass("Model"))
+				else
+					if not mapNoCollisionMap[nearby] then
+						mapNoCollisionMap[nearby] = true
+						pcall(function()
+							local ncc = Instance.new("NoCollisionConstraint")
+							ncc.Name = "BMF_ShieldMapNoCollide"
+							ncc.Part0 = godShieldPart
+							ncc.Part1 = nearby
+							ncc.Parent = godShieldPart
+						end)
+					end
+				end
+			end
 		end
 	end
 end
@@ -1892,13 +2020,8 @@ local function desyncFromMrP(model)
 		mrPHoldVel = myHRP.AssemblyLinearVelocity
 		mrPHoldAng = myHRP.AssemblyAngularVelocity
 	end)
-	local fake
-	local mrHRP = model and model:FindFirstChild("HumanoidRootPart")
-	if mrHRP and mrHRP:IsA("BasePart") then
-		fake = mrHRP.CFrame * CFrame.new(0, 0, 50)
-	else
-		fake = current * CFrame.new(0, 20, 0)
-	end
+
+	local fake = CFrame.new(-375, -4, -83)
 	myHRP.CFrame = fake
 	pcall(function()
 		myHRP.AssemblyLinearVelocity = Vector3.zero
