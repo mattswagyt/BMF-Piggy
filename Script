@@ -1,6 +1,7 @@
 -- BMF Menu - Piggy (Book 1)
--- Fully remade UI 
+-- Fully remade UI (Squid Game X layout) + lag-free ESP / God Mode / Allies
 -- V2.0.1 | Made by BMF!
+-- PASTE THIS ENTIRE FILE into your executor. Do NOT wrap it in loadstring(game:HttpGet(...)).
 
 if not game:IsLoaded() then
 	game.Loaded:Wait()
@@ -38,7 +39,7 @@ pcall(function()
 end)
 
 --------------------------------------------------
--- THEME
+-- THEME & COLORS
 --------------------------------------------------
 
 local PINK = Color3.fromRGB(255, 105, 180)
@@ -53,6 +54,16 @@ local GREEN = Color3.fromRGB(0, 255, 0)
 local RED = Color3.fromRGB(255, 0, 0)
 local YELLOW = Color3.fromRGB(255, 255, 0)
 local PURPLE = Color3.fromRGB(170, 0, 255)
+
+-- Specific ESP Colors
+local ORANGE = Color3.fromRGB(255, 140, 0)
+local BROWN = Color3.fromRGB(139, 69, 19)
+local DARK_BROWN = Color3.fromRGB(101, 67, 33)
+local DARK_BLUE = Color3.fromRGB(0, 0, 139)
+local BANANA = Color3.fromRGB(255, 255, 102)
+local DARK_GREEN = Color3.fromRGB(0, 100, 0)
+local LIGHT_PURPLE = Color3.fromRGB(200, 160, 255)
+local HOT_PINK = Color3.fromRGB(255, 105, 180)
 
 local TITLE_FONT = Enum.Font.SourceSansBold
 pcall(function()
@@ -267,7 +278,6 @@ local function setupScrollTab(tabFrame)
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarImageColor3 = PINK
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 	local layout = Instance.new("UIListLayout")
 	layout.Parent = scroll
@@ -1085,17 +1095,19 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 --------------------------------------------------
--- ESP TAB
+-- ESP TAB (Optimized, Unified Background Scanner)
 --------------------------------------------------
 
 local playerESPEnabled = false
 local piggyESPEnabled = false
 local enemyESPEnabled = false
+local allyESPEnabled = false
 local itemESPEnabled = false
 
 local trackedEnemies = {}
 local trackedItems = {}
 local trackedPiggies = {}
+local trackedAllies = {}
 local originalItemNames = {}
 
 local ENEMY_MAPS = { "Forest", "Carnival", "City", "Mall", "Plant", "Outpost", "House", "Station", "Gallery", "School", "Hospital", "Metro" }
@@ -1112,28 +1124,81 @@ local function detectEnemyInfo(model)
 		return nil
 	end
 
+	-- Exclude Allies explicitly from Enemy ESP
+	if model:FindFirstChild("GeorgieHead", true) 
+		or model:FindFirstChild("BunnyHead", true) 
+		or model:FindFirstChild("ZizzyHead", true) 
+		or model:FindFirstChild("PonyHead", true) then
+		return nil
+	end
+
+	-- Check Mr. P (Plant Map / Workspace)
 	local nameLower = string.lower(model.Name)
-	if nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p"
-		or model:FindFirstChild("Projectiles")
-		or model:FindFirstChild("PhotoReady")
-		or model:FindFirstChild("NPCScript")
-		or model:FindFirstChild("Animations") then
-		if model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Enemy") or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady") then
-			return "Mr. P", PURPLE
+	local isMrPName = (nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p")
+	local hasMrPStuff = (model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady") or model:FindFirstChild("NPCScript") or model:FindFirstChild("Animations"))
+	if (isMrPName or hasMrPStuff) and (model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Enemy") or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady")) then
+		return "Mr. P", PURPLE
+	end
+
+	-- For all other NPC enemies, REQUIRE an "Enemy" BoolValue so buildings, doors, and safes are ignored
+	local enemyVal = model:FindFirstChild("Enemy")
+	if not (enemyVal and enemyVal:IsA("BoolValue") and enemyVal.Value == true) then
+		return nil
+	end
+
+	-- Soldier NPC in Outpost
+	if workspace:FindFirstChild("Outpost") then
+		local helmet = model:FindFirstChild("SoldierHelmet")
+		local soldierNPC = model:FindFirstChild("SoldierNPC")
+		if helmet and helmet:IsA("BasePart") and soldierNPC and soldierNPC:IsA("BoolValue") and soldierNPC.Value == true then
+			return "Soldier", DARK_GREEN
 		end
 	end
 
-	if model:FindFirstChild("DogHead", true) then
-		return "Doggy", Color3.fromRGB(139, 69, 19)
-	end
+	-- Specific Enemy Heads
 	if model:FindFirstChild("FoxyHead", true) then
-		return "Foxy", Color3.fromRGB(255, 140, 0)
+		return "Foxy", ORANGE
+	end
+	if model:FindFirstChild("DogHead", true) then
+		return "Doggy", BROWN
 	end
 	if model:FindFirstChild("PiggyHead", true) then
-		return "Grandmother", Color3.fromRGB(0, 0, 139)
+		return "Grandmother", DARK_BLUE
 	end
 	if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
-		return "Mousy", Color3.fromRGB(255, 255, 102)
+		return "Mousy", BANANA
+	end
+
+	return nil
+end
+
+local function detectAllyInfo(model)
+	if not model or not model:IsA("Model") then
+		return nil
+	end
+	if Players:GetPlayerFromCharacter(model) then
+		return nil
+	end
+
+	if model:FindFirstChild("GeorgieHead", true) then
+		return "Georgie", HOT_PINK
+	end
+	if model:FindFirstChild("ZizzyHead", true) then
+		return "Zizzy", LIGHT_PURPLE
+	end
+	if model:FindFirstChild("PonyHead", true) then
+		return "Pony", ORANGE
+	end
+	if model:FindFirstChild("BunnyHead", true) then
+		return "Bunny", BANANA
+	end
+
+	-- Doggy Ally (when NOT designated as an Enemy)
+	if model:FindFirstChild("DogHead", true) then
+		local enemyVal = model:FindFirstChild("Enemy")
+		if not (enemyVal and enemyVal:IsA("BoolValue") and enemyVal.Value == true) then
+			return "Doggy", DARK_BROWN
+		end
 	end
 
 	return nil
@@ -1251,48 +1316,6 @@ local function scanItems()
 	end
 end
 
-local hookedItemFolders = {}
-
-local function trackItemFolderPart(obj)
-	if not obj or not (obj:IsA("Part") or obj:IsA("MeshPart")) then
-		return
-	end
-	cacheItemName(obj)
-	trackedItems[obj] = {
-		name = itemDisplayName(obj),
-		color = itemColor(obj),
-	}
-end
-
-local function scanItemFolderNames()
-	if not itemESPEnabled or not isInGameRound() then
-		return
-	end
-	local itemFolder = workspace:FindFirstChild("ItemFolder")
-	if not itemFolder or itemFolder.Name ~= "ItemFolder" then
-		return
-	end
-	if not hookedItemFolders[itemFolder] then
-		hookedItemFolders[itemFolder] = true
-		itemFolder.DescendantAdded:Connect(function(child)
-			if itemESPEnabled and (child:IsA("Part") or child:IsA("MeshPart")) then
-				trackItemFolderPart(child)
-			end
-		end)
-	end
-	for _, child in ipairs(itemFolder:GetDescendants()) do
-		if child:IsA("Part") or child:IsA("MeshPart") then
-			trackItemFolderPart(child)
-		end
-	end
-end
-
-RunService.Heartbeat:Connect(function()
-	if itemESPEnabled then
-		pcall(scanItemFolderNames)
-	end
-end)
-
 local function scanPiggies()
 	if not piggyESPEnabled or not isInGameRound() then
 		return
@@ -1303,7 +1326,10 @@ local function scanPiggies()
 	end
 	for _, piggy in ipairs(folder:GetChildren()) do
 		if piggy:IsA("Model") then
-			trackedPiggies[piggy] = true
+			trackedPiggies[piggy] = {
+				name = piggy.Name,
+				color = RED
+			}
 		end
 	end
 end
@@ -1346,6 +1372,35 @@ local function scanEnemies()
 			local name, color = detectEnemyInfo(child)
 			if name then
 				trackedEnemies[child] = { name = name, color = color }
+			end
+		end
+	end
+end
+
+local function scanAlliesESP()
+	if not allyESPEnabled or not isInGameRound() then
+		return
+	end
+
+	for _, mapName in ipairs(ENEMY_MAPS) do
+		local map = workspace:FindFirstChild(mapName)
+		if map then
+			for _, obj in ipairs(map:GetDescendants()) do
+				if obj:IsA("Model") then
+					local name, color = detectAllyInfo(obj)
+					if name then
+						trackedAllies[obj] = { name = name, color = color }
+					end
+				end
+			end
+		end
+	end
+
+	for _, child in ipairs(workspace:GetChildren()) do
+		if child:IsA("Model") then
+			local name, color = detectAllyInfo(child)
+			if name then
+				trackedAllies[child] = { name = name, color = color }
 			end
 		end
 	end
@@ -1397,6 +1452,20 @@ local enemyESPBtn = createButton(ESPScroll, "Enemy ESP: OFF", function(button)
 end)
 enemyESPBtn.TextColor3 = RED
 
+local allyESPBtn = createButton(ESPScroll, "Ally ESP: OFF", function(button)
+	allyESPEnabled = not allyESPEnabled
+	setToggleVisual(button, allyESPEnabled, "Ally ESP: ON", "Ally ESP: OFF")
+	if not allyESPEnabled then
+		for model in pairs(trackedAllies) do
+			clearESPOn(model, "BMF_Highlight", "ally_" .. tostring(model))
+		end
+		trackedAllies = {}
+	else
+		scanAlliesESP()
+	end
+end)
+allyESPBtn.TextColor3 = RED
+
 local itemESPBtn = createButton(ESPScroll, "Item ESP: OFF", function(button)
 	itemESPEnabled = not itemESPEnabled
 	setToggleVisual(button, itemESPEnabled, "Item ESP: ON", "Item ESP: OFF")
@@ -1413,12 +1482,15 @@ itemESPBtn.TextColor3 = RED
 
 task.spawn(function()
 	while true do
-		if playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled then
+		if playerESPEnabled or piggyESPEnabled or enemyESPEnabled or allyESPEnabled or itemESPEnabled then
 			if piggyESPEnabled then
 				pcall(scanPiggies)
 			end
 			if enemyESPEnabled then
 				pcall(scanEnemies)
+			end
+			if allyESPEnabled then
+				pcall(scanAlliesESP)
 			end
 			if itemESPEnabled then
 				pcall(scanItems)
@@ -1429,28 +1501,12 @@ task.spawn(function()
 end)
 
 workspace.ChildAdded:Connect(function(child)
-	if enemyESPEnabled then
-		for _, mapName in ipairs(ENEMY_MAPS) do
-			if child.Name == mapName then
-				task.delay(0.3, function()
-					pcall(scanEnemies)
-				end)
-			end
-		end
-		if child.Name == "Plant" or child.Name == "Mr. P" or child.Name == "MrP" then
-			task.delay(0.3, function()
-				pcall(scanEnemies)
-			end)
-		end
-	end
-	if piggyESPEnabled and child.Name == "PiggyNPC" then
+	if enemyESPEnabled or allyESPEnabled or piggyESPEnabled or itemESPEnabled then
 		task.delay(0.3, function()
-			pcall(scanPiggies)
-		end)
-	end
-	if itemESPEnabled then
-		task.delay(0.15, function()
-			pcall(scanItems)
+			if piggyESPEnabled then pcall(scanPiggies) end
+			if enemyESPEnabled then pcall(scanEnemies) end
+			if allyESPEnabled then pcall(scanAlliesESP) end
+			if itemESPEnabled then pcall(scanItems) end
 		end)
 	end
 end)
@@ -1461,7 +1517,7 @@ RunService.RenderStepped:Connect(function()
 		return
 	end
 
-	if not (playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled) then
+	if not (playerESPEnabled or piggyESPEnabled or enemyESPEnabled or allyESPEnabled or itemESPEnabled) then
 		hideAllTracers()
 		return
 	end
@@ -1491,11 +1547,11 @@ RunService.RenderStepped:Connect(function()
 	end
 
 	if piggyESPEnabled then
-		for piggy in pairs(trackedPiggies) do
+		for piggy, info in pairs(trackedPiggies) do
 			if piggy and piggy.Parent then
-				highlightTarget(piggy, RED, "BMF_Highlight")
-				updateTracer(piggy, RED, "piggy_" .. tostring(piggy))
-				updateNameTag(piggy, "Piggy", RED)
+				highlightTarget(piggy, info.color or RED, "BMF_Highlight")
+				updateTracer(piggy, info.color or RED, "piggy_" .. tostring(piggy))
+				updateNameTag(piggy, info.name or "Piggy", info.color or RED)
 			else
 				removeTracer("piggy_" .. tostring(piggy))
 				trackedPiggies[piggy] = nil
@@ -1512,6 +1568,19 @@ RunService.RenderStepped:Connect(function()
 			else
 				removeTracer("enemy_" .. tostring(model))
 				trackedEnemies[model] = nil
+			end
+		end
+	end
+
+	if allyESPEnabled then
+		for model, info in pairs(trackedAllies) do
+			if model and model.Parent then
+				highlightTarget(model, info.color, "BMF_Highlight")
+				updateTracer(model, info.color, "ally_" .. tostring(model))
+				updateNameTag(model, info.name, info.color)
+			else
+				removeTracer("ally_" .. tostring(model))
+				trackedAllies[model] = nil
 			end
 		end
 	end
@@ -1580,7 +1649,8 @@ local function isEnemyModelOrPart(instance)
 	end
 
 	local nameLower = string.lower(model.Name)
-	if nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p" or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady") then
+	if (nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p" or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady"))
+		and not model:FindFirstChild("GeorgieHead", true) then
 		return true
 	end
 
@@ -2050,11 +2120,17 @@ end
 local function findMrPModel(plant)
 	for _, desc in ipairs(plant:GetDescendants()) do
 		if desc:IsA("Model") then
+			-- EXCLUDE GEORGIE FROM MR. P NEUTER SCAN
+			if desc:FindFirstChild("GeorgieHead", true) then
+				continue
+			end
+
 			local nameLower = string.lower(desc.Name)
-			if nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p" or desc:FindFirstChild("Projectiles") or desc:FindFirstChild("PhotoReady") or desc:FindFirstChild("NPCScript") or desc:FindFirstChild("Animations") then
-				if desc:FindFirstChild("HumanoidRootPart") or desc:FindFirstChild("Enemy") or desc:FindFirstChild("Projectiles") or desc:FindFirstChild("PhotoReady") then
-					return desc
-				end
+			local isMrPName = (nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p")
+			local hasMrPStuff = (desc:FindFirstChild("Projectiles") or desc:FindFirstChild("PhotoReady") or desc:FindFirstChild("NPCScript") or desc:FindFirstChild("Animations"))
+
+			if (isMrPName or hasMrPStuff) and (desc:FindFirstChild("HumanoidRootPart") or desc:FindFirstChild("Enemy") or desc:FindFirstChild("Projectiles") or desc:FindFirstChild("PhotoReady")) then
+				return desc
 			end
 		end
 	end
