@@ -232,7 +232,7 @@ end)
 pcall(function()
 	StarterGui:SetCore("SendNotification", {
 		Title = "BMF Menu Loaded!",
-		Text = "Piggy (Book 1) V2.0.0 ready. Press Delete to toggle.",
+		Text = "Piggy (Book 1) V2.0.1 ready. Press Delete to toggle.",
 		Duration = 8,
 	})
 end)
@@ -719,6 +719,7 @@ local flyConn
 
 local flyBtn, flyNoclipBtn
 local collideSnapshot = nil
+local mrPHoldCF = nil
 
 local function rememberCollide(character)
 	collideSnapshot = {}
@@ -791,6 +792,10 @@ local function stopFly()
 			end)
 		end
 		restoreCollide()
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			mrPHoldCF = hrp.CFrame
+		end
 	else
 		restoreCollide()
 	end
@@ -810,6 +815,8 @@ local function startFly(withNoclip)
 
 	flying = true
 	noclipActive = withNoclip and true or false
+	mrPHoldCF = hrp.CFrame
+
 	if withNoclip then
 		rememberCollide(character)
 	end
@@ -1404,6 +1411,7 @@ local godModeEnabled = false
 local alliesNoDamageEnabled = false
 local godTracked = {}
 local alliesTracked = {}
+local godShieldPart = nil
 
 local ALLY_HEADS = {
 	DogHead = true,
@@ -1418,6 +1426,101 @@ local GOD_MAPS = {
 	{ name = "Carnival", head = "FoxyHead", grandmother = false },
 	{ name = "Forest", head = "DogHead", grandmother = false },
 }
+
+local function removeGodShield()
+	if godShieldPart then
+		pcall(function()
+			godShieldPart:Destroy()
+		end)
+		godShieldPart = nil
+	end
+end
+
+local function updateGodShield()
+	if not godModeEnabled then
+		removeGodShield()
+		return
+	end
+	local char = LocalPlayer.Character
+	if not char then
+		removeGodShield()
+		return
+	end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp or not hrp:IsA("BasePart") then
+		removeGodShield()
+		return
+	end
+
+	if not godShieldPart or not godShieldPart.Parent then
+		local part = Instance.new("Part")
+		part.Name = "BMF_GodShield"
+		part.Size = Vector3.new(7, 8, 7)
+		part.Transparency = 1
+		part.Material = Enum.Material.SmoothPlastic
+		part.Massless = true
+		part.Anchored = false
+		part.CanTouch = true
+		part.CanQuery = true
+		part.CanCollide = not noclipActive
+		part.CastShadow = false
+		part.TopSurface = Enum.SurfaceType.Smooth
+		part.BottomSurface = Enum.SurfaceType.Smooth
+		part.CFrame = hrp.CFrame
+		part.Parent = char
+
+		for _, v in ipairs(char:GetDescendants()) do
+			if v:IsA("BasePart") and v ~= part then
+				pcall(function()
+					local ncc = Instance.new("NoCollisionConstraint")
+					ncc.Part0 = part
+					ncc.Part1 = v
+					ncc.Parent = part
+				end)
+			end
+		end
+
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = hrp
+		weld.Part1 = part
+		weld.Parent = part
+
+		godShieldPart = part
+	end
+
+	if godShieldPart and godShieldPart.Parent then
+		godShieldPart.CanCollide = not noclipActive
+		if (godShieldPart.Position - hrp.Position).Magnitude > 10 then
+			godShieldPart.CFrame = hrp.CFrame
+		end
+	end
+end
+
+local function applyGodModeSelf()
+	if not godModeEnabled then
+		return
+	end
+	local char = LocalPlayer.Character
+	if not char then
+		return
+	end
+
+	local healthScript = char:FindFirstChild("Health")
+	if healthScript then
+		pcall(function()
+			healthScript:Destroy()
+		end)
+	end
+
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if hrp and hrp:IsA("BasePart") then
+		hrp.CanTouch = false
+		hrp.CanQuery = false
+		hrp.CanCollide = false
+	end
+
+	updateGodShield()
+end
 
 local function destroyTouch(obj)
 	if not obj then
@@ -1518,6 +1621,8 @@ local function scanGodMode()
 	if not godModeEnabled then
 		return
 	end
+
+	applyGodModeSelf()
 
 	for _, info in ipairs(GOD_MAPS) do
 		local map = workspace:FindFirstChild(info.name)
@@ -1650,6 +1755,9 @@ local godBtn = createButton(ExploitsScroll, "God Mode: OFF", function(button)
 	setToggleVisual(button, godModeEnabled, "God Mode: ON", "God Mode: OFF")
 	if godModeEnabled then
 		scanGodMode()
+		applyGodModeSelf()
+	else
+		removeGodShield()
 	end
 end)
 godBtn.TextColor3 = RED
@@ -1667,7 +1775,6 @@ local mrPNoDamageEnabled = false
 local mrPModel = nil
 local mrPPlantRef = nil
 local mrPLastScan = 0
-local mrPHoldCF = nil
 local mrPHoldVel = nil
 local mrPHoldAng = nil
 local mrPSpoofPending = false
@@ -1762,27 +1869,11 @@ local function findMrPModel(plant)
 end
 
 local function desyncFromMrP(model)
-	if flying then
-		return
-	end
 	local myHRP = getLocalHRP()
 	if not myHRP then
 		return
 	end
 	local current = myHRP.CFrame
-	if mrPHoldCF then
-		local delta = (current.Position - mrPHoldCF.Position).Magnitude
-		if delta > 18 then
-			myHRP.CFrame = mrPHoldCF
-			if mrPHoldVel then
-				pcall(function()
-					myHRP.AssemblyLinearVelocity = mrPHoldVel
-					myHRP.AssemblyAngularVelocity = mrPHoldAng or Vector3.zero
-				end)
-			end
-			current = mrPHoldCF
-		end
-	end
 	mrPHoldCF = current
 	pcall(function()
 		mrPHoldVel = myHRP.AssemblyLinearVelocity
@@ -1864,6 +1955,9 @@ RunService:BindToRenderStep("BMF_MrPVisual", Enum.RenderPriority.Camera.Value - 
 end)
 
 RunService.Stepped:Connect(function()
+	if godModeEnabled then
+		applyGodModeSelf()
+	end
 	if not mrPSpoofPending then
 		return
 	end
@@ -1877,6 +1971,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 	mrPHoldAng = nil
 	mrPSpoofPending = false
 	mrPModel = nil
+	removeGodShield()
 end)
 
 task.spawn(function()
@@ -1923,6 +2018,7 @@ end)
 
 RunService.Heartbeat:Connect(function()
 	if godModeEnabled then
+		applyGodModeSelf()
 		for model in pairs(godTracked) do
 			if model and model.Parent then
 				purgeHeadAndRootTouches(model)
