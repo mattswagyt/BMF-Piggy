@@ -662,7 +662,6 @@ BodyCopy.AutomaticSize = Enum.AutomaticSize.Y
 BodyCopy.Text =
 	"Hello, thank you for using BMF Menu! This script was developed and is actively maintained by BMF. The script supports the following features:\n\n• Player Features\n• ESP\n• Exploits\n• Teleports\n• Misc\n• Scripts\n• Free and keyless!"
 
--- Keep profile frame tall enough under the wrapped copy
 task.defer(function()
 	local function fit()
 		local bottom = math.max(108, BodyCopy.AbsolutePosition.Y - ProfileFrame.AbsolutePosition.Y + BodyCopy.AbsoluteSize.Y + 16)
@@ -697,7 +696,6 @@ task.spawn(function()
 
 		local piggyName = getPiggyPlayerName()
 		PiggyLabel.Text = piggyName and ("Piggy: " .. piggyName) or "Piggy: Bot"
-
 		PlayersCountLabel.Text = "Players: " .. tostring(#Players:GetPlayers())
 		task.wait(0.5)
 	end
@@ -1010,9 +1008,9 @@ local piggyESPEnabled = false
 local enemyESPEnabled = false
 local itemESPEnabled = false
 
-local trackedEnemies = {} -- [model] = {name=, color=}
-local trackedItems = {} -- [instance] = {name=, color=}
-local trackedPiggies = {} -- [model] = true
+local trackedEnemies = {}
+local trackedItems = {}
+local trackedPiggies = {}
 local originalItemNames = {}
 
 local ENEMY_MAPS = { "Forest", "Carnival", "City", "Mall", "Plant" }
@@ -1131,7 +1129,6 @@ local function scanItems()
 
 	for _, child in ipairs(workspace:GetChildren()) do
 		if child == itemFolder then
-			-- already handled
 		elseif child:IsA("Folder") or child:IsA("Model") then
 			local kids = child:GetChildren()
 			local hits = 0
@@ -1288,7 +1285,6 @@ local itemESPBtn = createButton(ESPScroll, "Item ESP: OFF", function(button)
 end)
 itemESPBtn.TextColor3 = RED
 
--- Slow scanners (NOT every frame)
 task.spawn(function()
 	while true do
 		if playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled then
@@ -1306,7 +1302,6 @@ task.spawn(function()
 	end
 end)
 
--- Catch new maps / item dumps without scanning the whole tree every frame
 workspace.ChildAdded:Connect(function(child)
 	if enemyESPEnabled then
 		for _, mapName in ipairs(ENEMY_MAPS) do
@@ -1329,7 +1324,6 @@ workspace.ChildAdded:Connect(function(child)
 	end
 end)
 
--- Unified ESP render: one loop, reuse tracers, skip work when all ESP off
 RunService.RenderStepped:Connect(function()
 	if not (playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled) then
 		return
@@ -1403,13 +1397,13 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------
--- EXPLOITS TAB  (event-driven God Mode / Allies — no per-frame GetDescendants)
+-- EXPLOITS TAB
 --------------------------------------------------
 
 local godModeEnabled = false
 local alliesNoDamageEnabled = false
-local godTracked = {} -- [model] = true
-local alliesTracked = {} -- [model] = true
+local godTracked = {}
+local alliesTracked = {}
 
 local ALLY_HEADS = {
 	DogHead = true,
@@ -1669,11 +1663,151 @@ local alliesBtn = createButton(ExploitsScroll, "Allies Don't Deal Damage: OFF", 
 end)
 alliesBtn.TextColor3 = RED
 
+local mrPNoDamageEnabled = false
+local mrPModel = nil
+local mrPPlantRef = nil
+local mrPLastScan = 0
+local mrPDesyncRestore = nil
+
+local function destroyMrPRootTouch(hrp)
+	if not hrp then
+		return
+	end
+	for _, child in ipairs(hrp:GetChildren()) do
+		local className = ""
+		pcall(function()
+			className = child.ClassName
+		end)
+		if child.Name == "TouchTransmitter" or child.Name == "TouchInterest" or className == "TouchTransmitter" then
+			pcall(function()
+				child:Destroy()
+			end)
+		end
+	end
+end
+
+local function neuterMrP(model)
+	if not model or not model.Parent then
+		return
+	end
+	local enemy = model:FindFirstChild("Enemy")
+	if enemy and enemy:IsA("BoolValue") then
+		enemy.Value = false
+	end
+	local projectiles = model:FindFirstChild("Projectiles")
+	if projectiles and projectiles:IsA("Folder") then
+		pcall(function()
+			projectiles:Destroy()
+		end)
+	end
+	destroyMrPRootTouch(model:FindFirstChild("HumanoidRootPart"))
+end
+
+local function findMrPModel(plant)
+	for _, folder in ipairs(plant:GetChildren()) do
+		if folder:IsA("Folder") then
+			for _, model in ipairs(folder:GetChildren()) do
+				if model:IsA("Model") then
+					local projectiles = model:FindFirstChild("Projectiles")
+					if projectiles and projectiles:IsA("Folder") then
+						return model
+					end
+				end
+			end
+			for _, desc in ipairs(folder:GetDescendants()) do
+				if desc.Name == "Projectiles" and desc:IsA("Folder") then
+					local model = desc:FindFirstAncestorOfClass("Model")
+					if model and model:IsDescendantOf(plant) then
+						return model
+					end
+				end
+			end
+		elseif folder:IsA("Model") then
+			local projectiles = folder:FindFirstChild("Projectiles")
+			if projectiles and projectiles:IsA("Folder") then
+				return folder
+			end
+		end
+	end
+	return nil
+end
+
+local function desyncFromMrP(model)
+	if flying then
+		mrPDesyncRestore = nil
+		return
+	end
+	local character = LocalPlayer.Character
+	local myHRP = character and character:FindFirstChild("HumanoidRootPart")
+	if not myHRP then
+		return
+	end
+	local real = myHRP.CFrame
+	local fake
+	local mrHRP = model and model:FindFirstChild("HumanoidRootPart")
+	if mrHRP and mrHRP:IsA("BasePart") then
+		fake = mrHRP.CFrame * CFrame.new(0, 0, 50)
+	else
+		fake = real * CFrame.new(0, 20, 0)
+	end
+	mrPDesyncRestore = real
+	myHRP.CFrame = fake
+end
+
+local mrPBtn = createButton(ExploitsScroll, "Mr. P Don't Deal Damage: OFF", function(button)
+	mrPNoDamageEnabled = not mrPNoDamageEnabled
+	setToggleVisual(button, mrPNoDamageEnabled, "Mr. P Don't Deal Damage: ON", "Mr. P Don't Deal Damage: OFF")
+	if not mrPNoDamageEnabled then
+		mrPModel = nil
+		mrPPlantRef = nil
+	end
+end)
+mrPBtn.TextColor3 = RED
+
+RunService.Heartbeat:Connect(function()
+	if not mrPNoDamageEnabled then
+		return
+	end
+	local plant = workspace:FindFirstChild("Plant")
+	if not plant then
+		mrPModel = nil
+		mrPPlantRef = nil
+		return
+	end
+	if mrPPlantRef ~= plant then
+		mrPPlantRef = plant
+		mrPModel = nil
+	end
+	local now = os.clock()
+	if (now - mrPLastScan) > 0.2 or not (mrPModel and mrPModel.Parent) then
+		mrPLastScan = now
+		local fresh = findMrPModel(plant)
+		if fresh then
+			mrPModel = fresh
+		end
+	end
+	if mrPModel and mrPModel.Parent then
+		neuterMrP(mrPModel)
+		desyncFromMrP(mrPModel)
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if not mrPDesyncRestore then
+		return
+	end
+	local character = LocalPlayer.Character
+	local myHRP = character and character:FindFirstChild("HumanoidRootPart")
+	if myHRP then
+		myHRP.CFrame = mrPDesyncRestore
+	end
+	mrPDesyncRestore = nil
+end)
+
 task.spawn(function()
 	while true do
 		if godModeEnabled then
 			pcall(scanGodMode)
-			-- light refresh of already-tracked models (Enemy flag only, not full tree every time)
 			local n = 0
 			for model in pairs(godTracked) do
 				if model and model.Parent then
