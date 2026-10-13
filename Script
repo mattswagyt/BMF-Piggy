@@ -1,7 +1,6 @@
 -- BMF Menu - Piggy (Book 1)
--- Fully remade UI
+-- Fully remade UI 
 -- V2.0.1 | Made by BMF!
--- PASTE THIS ENTIRE FILE into your executor. Do NOT wrap it in loadstring(game:HttpGet(...)).
 
 if not game:IsLoaded() then
 	game.Loaded:Wait()
@@ -53,6 +52,7 @@ local BLACK = Color3.fromRGB(0, 0, 0)
 local GREEN = Color3.fromRGB(0, 255, 0)
 local RED = Color3.fromRGB(255, 0, 0)
 local YELLOW = Color3.fromRGB(255, 255, 0)
+local PURPLE = Color3.fromRGB(170, 0, 255)
 
 local TITLE_FONT = Enum.Font.SourceSansBold
 pcall(function()
@@ -463,6 +463,14 @@ local function removeTracer(tagKey)
 	end
 end
 
+local function hideAllTracers()
+	for _, line in pairs(ESP_Tracers) do
+		if line then
+			line.Visible = false
+		end
+	end
+end
+
 local function updateNameTag(target, text, color)
 	if not target then
 		return
@@ -762,13 +770,31 @@ local flyConn
 
 local flyBtn, flyNoclipBtn
 local collideSnapshot = nil
-local mrPHoldCF = nil
+local realUserCFrame = nil
 
-local SAFE_ROOM_POS = Vector3.new(-375, -4, -83)
+local SAFE_ROOM_CF = CFrame.new(-375, -4, -83)
 
-local function isAtSafeRoom(cf)
+local function isNearSafeRoom(cf)
 	if not cf then return false end
-	return (cf.Position - SAFE_ROOM_POS).Magnitude < 5
+	return (cf.Position - SAFE_ROOM_CF.Position).Magnitude < 15
+end
+
+local function getLocalHRP()
+	local character = LocalPlayer.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if hrp and hrp:IsA("BasePart") then
+		return hrp
+	end
+	return nil
+end
+
+local function updateRealPosition()
+	local hrp = getLocalHRP()
+	if not hrp then return end
+	local currentCF = hrp.CFrame
+	if not isNearSafeRoom(currentCF) then
+		realUserCFrame = currentCF
+	end
 end
 
 local function rememberCollide(character)
@@ -842,11 +868,10 @@ local function stopFly()
 			end)
 		end
 		restoreCollide()
-		local hrp = character:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			if not isAtSafeRoom(hrp.CFrame) then
-				mrPHoldCF = hrp.CFrame
-			end
+		updateRealPosition()
+		local hrp = getLocalHRP()
+		if hrp and realUserCFrame then
+			hrp.CFrame = realUserCFrame
 		end
 	else
 		restoreCollide()
@@ -867,9 +892,7 @@ local function startFly(withNoclip)
 
 	flying = true
 	noclipActive = withNoclip and true or false
-	if not isAtSafeRoom(hrp.CFrame) then
-		mrPHoldCF = hrp.CFrame
-	end
+	updateRealPosition()
 
 	if withNoclip then
 		rememberCollide(character)
@@ -926,9 +949,7 @@ local function startFly(withNoclip)
 			flyBV.Velocity = Vector3.new(0, 0, 0)
 		end
 		flyBG.CFrame = camera.CFrame
-		if not isAtSafeRoom(hrp.CFrame) then
-			mrPHoldCF = hrp.CFrame
-		end
+		updateRealPosition()
 	end)
 end
 
@@ -1064,7 +1085,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 --------------------------------------------------
--- ESP TAB  (unified 1-render-loop, no stacked connections)
+-- ESP TAB
 --------------------------------------------------
 
 local playerESPEnabled = false
@@ -1077,15 +1098,31 @@ local trackedItems = {}
 local trackedPiggies = {}
 local originalItemNames = {}
 
-local ENEMY_MAPS = { "Forest", "Carnival", "City", "Mall", "Plant" }
+local ENEMY_MAPS = { "Forest", "Carnival", "City", "Mall", "Plant", "Outpost", "House", "Station", "Gallery", "School", "Hospital", "Metro" }
 
 local function detectEnemyInfo(model)
 	if not model or not model:IsA("Model") then
 		return nil
 	end
-	if model.Name == "Mr. P" or model.Name == "MrP" or model:FindFirstChild("Projectiles") or model:FindFirstChild("MrPHead", true) or model:FindFirstChild("MrP", true) then
-		return "Mr. P", Color3.fromRGB(128, 0, 128)
+	if Players:GetPlayerFromCharacter(model) then
+		return nil
 	end
+	local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+	if piggyFolder and model:IsDescendantOf(piggyFolder) then
+		return nil
+	end
+
+	local nameLower = string.lower(model.Name)
+	if nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p"
+		or model:FindFirstChild("Projectiles")
+		or model:FindFirstChild("PhotoReady")
+		or model:FindFirstChild("NPCScript")
+		or model:FindFirstChild("Animations") then
+		if model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Enemy") or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady") then
+			return "Mr. P", PURPLE
+		end
+	end
+
 	if model:FindFirstChild("DogHead", true) then
 		return "Doggy", Color3.fromRGB(139, 69, 19)
 	end
@@ -1098,6 +1135,7 @@ local function detectEnemyInfo(model)
 	if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
 		return "Mousy", Color3.fromRGB(255, 255, 102)
 	end
+
 	return nil
 end
 
@@ -1180,7 +1218,7 @@ local function considerItem(obj)
 end
 
 local function scanItems()
-	if not itemESPEnabled then
+	if not itemESPEnabled or not isInGameRound() then
 		return
 	end
 
@@ -1227,7 +1265,7 @@ local function trackItemFolderPart(obj)
 end
 
 local function scanItemFolderNames()
-	if not itemESPEnabled then
+	if not itemESPEnabled or not isInGameRound() then
 		return
 	end
 	local itemFolder = workspace:FindFirstChild("ItemFolder")
@@ -1256,7 +1294,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 local function scanPiggies()
-	if not piggyESPEnabled then
+	if not piggyESPEnabled or not isInGameRound() then
 		return
 	end
 	local folder = workspace:FindFirstChild("PiggyNPC")
@@ -1271,41 +1309,43 @@ local function scanPiggies()
 end
 
 local function scanEnemies()
-	if not enemyESPEnabled then
+	if not enemyESPEnabled or not isInGameRound() then
 		return
 	end
 
+	local plant = workspace:FindFirstChild("Plant")
+	if plant then
+		for _, desc in ipairs(plant:GetDescendants()) do
+			if desc:IsA("Model") then
+				local name, color = detectEnemyInfo(desc)
+				if name then
+					trackedEnemies[desc] = { name = name, color = color }
+				end
+			end
+		end
+	end
+
 	for _, mapName in ipairs(ENEMY_MAPS) do
-		local map = workspace:FindFirstChild(mapName)
-		if map then
-			for _, obj in ipairs(map:GetDescendants()) do
-				if obj:IsA("Model") then
-					local name, color = detectEnemyInfo(obj)
-					if name then
-						trackedEnemies[obj] = { name = name, color = color }
+		if mapName ~= "Plant" then
+			local map = workspace:FindFirstChild(mapName)
+			if map then
+				for _, obj in ipairs(map:GetDescendants()) do
+					if obj:IsA("Model") then
+						local name, color = detectEnemyInfo(obj)
+						if name then
+							trackedEnemies[obj] = { name = name, color = color }
+						end
 					end
 				end
 			end
 		end
 	end
 
-	for _, obj in ipairs(workspace:GetChildren()) do
-		if obj:IsA("Model") then
-			local name, color = detectEnemyInfo(obj)
+	for _, child in ipairs(workspace:GetChildren()) do
+		if child:IsA("Model") and child.Name ~= "PiggyNPC" then
+			local name, color = detectEnemyInfo(child)
 			if name then
-				trackedEnemies[obj] = { name = name, color = color }
-			end
-		end
-	end
-
-	local piggyFolder = workspace:FindFirstChild("PiggyNPC")
-	if piggyFolder then
-		for _, obj in ipairs(piggyFolder:GetChildren()) do
-			if obj:IsA("Model") then
-				local name, color = detectEnemyInfo(obj)
-				if name then
-					trackedEnemies[obj] = { name = name, color = color }
-				end
+				trackedEnemies[child] = { name = name, color = color }
 			end
 		end
 	end
@@ -1397,7 +1437,7 @@ workspace.ChildAdded:Connect(function(child)
 				end)
 			end
 		end
-		if child.Name == "PiggyNPC" or child.Name == "Mr. P" or child.Name == "Plant" then
+		if child.Name == "Plant" or child.Name == "Mr. P" or child.Name == "MrP" then
 			task.delay(0.3, function()
 				pcall(scanEnemies)
 			end)
@@ -1416,16 +1456,14 @@ workspace.ChildAdded:Connect(function(child)
 end)
 
 RunService.RenderStepped:Connect(function()
-	if not (playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled) then
+	if not isInGameRound() then
+		hideAllTracers()
 		return
 	end
 
-	if not isInGameRound() then
-		for tagKey, line in pairs(ESP_Tracers) do
-			if line then
-				line.Visible = false
-			end
-		end
+	if not (playerESPEnabled or piggyESPEnabled or enemyESPEnabled or itemESPEnabled) then
+		hideAllTracers()
+		return
 	end
 
 	if playerESPEnabled then
@@ -1496,7 +1534,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------
--- EXPLOITS TAB  (event-driven God Mode / Allies — no per-frame GetDescendants)
+-- EXPLOITS TAB
 --------------------------------------------------
 
 local godModeEnabled = false
@@ -1541,7 +1579,8 @@ local function isEnemyModelOrPart(instance)
 		return true
 	end
 
-	if model.Name == "Mr. P" or model.Name == "MrP" or model:FindFirstChild("Projectiles") then
+	local nameLower = string.lower(model.Name)
+	if nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p" or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady") then
 		return true
 	end
 
@@ -1954,17 +1993,8 @@ local mrPHoldVel = nil
 local mrPHoldAng = nil
 local mrPSpoofPending = false
 
-local function getLocalHRP()
-	local character = LocalPlayer.Character
-	local hrp = character and character:FindFirstChild("HumanoidRootPart")
-	if hrp and hrp:IsA("BasePart") then
-		return hrp
-	end
-	return nil
-end
-
 local function applyMrPHold()
-	if not mrPHoldCF then
+	if not realUserCFrame then
 		return
 	end
 	local hrp = getLocalHRP()
@@ -1972,10 +2002,9 @@ local function applyMrPHold()
 		return
 	end
 	if flying then
-		mrPHoldCF = hrp.CFrame
 		return
 	end
-	hrp.CFrame = mrPHoldCF
+	hrp.CFrame = realUserCFrame
 	if mrPHoldVel then
 		pcall(function()
 			hrp.AssemblyLinearVelocity = mrPHoldVel
@@ -2019,28 +2048,13 @@ local function neuterMrP(model)
 end
 
 local function findMrPModel(plant)
-	for _, folder in ipairs(plant:GetChildren()) do
-		if folder:IsA("Folder") then
-			for _, model in ipairs(folder:GetChildren()) do
-				if model:IsA("Model") then
-					local projectiles = model:FindFirstChild("Projectiles")
-					if projectiles and projectiles:IsA("Folder") then
-						return model
-					end
+	for _, desc in ipairs(plant:GetDescendants()) do
+		if desc:IsA("Model") then
+			local nameLower = string.lower(desc.Name)
+			if nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p" or desc:FindFirstChild("Projectiles") or desc:FindFirstChild("PhotoReady") or desc:FindFirstChild("NPCScript") or desc:FindFirstChild("Animations") then
+				if desc:FindFirstChild("HumanoidRootPart") or desc:FindFirstChild("Enemy") or desc:FindFirstChild("Projectiles") or desc:FindFirstChild("PhotoReady") then
+					return desc
 				end
-			end
-			for _, desc in ipairs(folder:GetDescendants()) do
-				if desc.Name == "Projectiles" and desc:IsA("Folder") then
-					local model = desc:FindFirstAncestorOfClass("Model")
-					if model and model:IsDescendantOf(plant) then
-						return model
-					end
-				end
-			end
-		elseif folder:IsA("Model") then
-			local projectiles = folder:FindFirstChild("Projectiles")
-			if projectiles and projectiles:IsA("Folder") then
-				return folder
 			end
 		end
 	end
@@ -2053,21 +2067,22 @@ local function desyncFromMrP(model)
 		return
 	end
 
-	local current = myHRP.CFrame
-	if not isAtSafeRoom(current) then
-		mrPHoldCF = current
-		pcall(function()
-			mrPHoldVel = myHRP.AssemblyLinearVelocity
-			mrPHoldAng = myHRP.AssemblyAngularVelocity
-		end)
+	updateRealPosition()
+
+	if not realUserCFrame then
+		realUserCFrame = myHRP.CFrame
 	end
+
+	pcall(function()
+		mrPHoldVel = myHRP.AssemblyLinearVelocity
+		mrPHoldAng = myHRP.AssemblyAngularVelocity
+	end)
 
 	if flying then
 		return
 	end
 
-	local fake = SAFE_ROOM_POS
-	myHRP.CFrame = CFrame.new(fake)
+	myHRP.CFrame = SAFE_ROOM_CF
 	pcall(function()
 		myHRP.AssemblyLinearVelocity = Vector3.zero
 		myHRP.AssemblyAngularVelocity = Vector3.zero
@@ -2082,7 +2097,6 @@ local mrPBtn = createButton(ExploitsScroll, "Mr. P Doesn't Deal Damage (WIP!): O
 		applyMrPHold()
 		mrPModel = nil
 		mrPPlantRef = nil
-		mrPHoldCF = nil
 		mrPHoldVel = nil
 		mrPHoldAng = nil
 		mrPSpoofPending = false
@@ -2102,7 +2116,6 @@ RunService.Heartbeat:Connect(function()
 		end
 		mrPModel = nil
 		mrPPlantRef = nil
-		mrPHoldCF = nil
 		return
 	end
 	if mrPPlantRef ~= plant then
@@ -2147,7 +2160,7 @@ RunService.Stepped:Connect(function()
 end)
 
 LocalPlayer.CharacterAdded:Connect(function(char)
-	mrPHoldCF = nil
+	realUserCFrame = nil
 	mrPHoldVel = nil
 	mrPHoldAng = nil
 	mrPSpoofPending = false
