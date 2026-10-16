@@ -1093,7 +1093,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 --------------------------------------------------
--- ESP TAB (Optimized, Re-ordered Detection Logic)
+-- ESP TAB (Optimized, Explicit Enemy Detection)
 --------------------------------------------------
 
 local playerESPEnabled = false
@@ -1130,27 +1130,12 @@ local function detectEnemyInfo(model)
 		return nil
 	end
 
-	-- CHECK SPECIFIC ENEMY HEAD MESHES FIRST (Prevents Foxy, Grandmother, Mousy from being flagged as Mr. P)
+	-- 1. Foxy
 	if model:FindFirstChild("FoxyHead", true) then
 		return "Foxy", ORANGE
 	end
-	if model:FindFirstChild("PiggyHead", true) then
-		return "Grandmother", DARK_BLUE
-	end
-	if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
-		return "Mousy", BANANA
-	end
 
-	-- Outpost Soldier Check
-	if workspace:FindFirstChild("Outpost") or model:IsDescendantOf(workspace:FindFirstChild("Outpost") or workspace) then
-		local helmet = model:FindFirstChild("SoldierHelmet")
-		local soldierNPC = model:FindFirstChild("SoldierNPC")
-		if helmet and helmet:IsA("BasePart") and soldierNPC and soldierNPC:IsA("BoolValue") and soldierNPC.Value == true then
-			return "Soldier", DARK_GREEN
-		end
-	end
-
-	-- Doggy Enemy Check (Only if Enemy.Value is true)
+	-- 2. Doggy (Enemy)
 	if model:FindFirstChild("DogHead", true) then
 		local enemyVal = model:FindFirstChild("Enemy")
 		if enemyVal and enemyVal:IsA("BoolValue") and enemyVal.Value == true then
@@ -1158,14 +1143,31 @@ local function detectEnemyInfo(model)
 		end
 	end
 
-	-- STRICT MR. P CHECK (Checked ONLY after verifying model is not another NPC enemy or Ally)
-	local nameLower = string.lower(model.Name)
-	local isMrPName = (nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p")
-	local plantFolder = workspace:FindFirstChild("Plant")
-	local isPlantDescendant = plantFolder and model:IsDescendantOf(plantFolder)
+	-- 3. Grandmother (PiggyHead ONLY if workspace.City exists)
+	if workspace:FindFirstChild("City") and model:FindFirstChild("PiggyHead", true) then
+		return "Grandmother", DARK_BLUE
+	end
 
-	if isMrPName or (isPlantDescendant and (model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady"))) then
-		if not model:FindFirstChild("GeorgieHead", true) and (model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Enemy") or model:FindFirstChild("Projectiles") or model:FindFirstChild("PhotoReady")) then
+	-- 4. Mousy
+	if model:FindFirstChild("MousyHead", true) and model:FindFirstChild("MousyPoints", true) then
+		return "Mousy", BANANA
+	end
+
+	-- 5. Soldier (SoldierHelmet part & SoldierNPC BoolValue == true)
+	local helmet = model:FindFirstChild("SoldierHelmet", true)
+	local soldierNPC = model:FindFirstChild("SoldierNPC", true)
+	if helmet and helmet:IsA("BasePart") and soldierNPC and soldierNPC:IsA("BoolValue") and soldierNPC.Value == true then
+		return "Soldier", DARK_GREEN
+	end
+
+	-- 6. Mr. P (ONLY if workspace.Plant exists, has PhotoReady or named Mr. P, no GeorgieHead)
+	local plantFolder = workspace:FindFirstChild("Plant")
+	if plantFolder then
+		local nameLower = string.lower(model.Name)
+		local isMrPName = (nameLower == "mr. p" or nameLower == "mrp" or nameLower == "mr p")
+		local photoReady = model:FindFirstChild("PhotoReady", true) or model:FindFirstChild("PhotoReady")
+		
+		if (isMrPName or photoReady) and not model:FindFirstChild("GeorgieHead", true) then
 			return "Mr. P", PURPLE
 		end
 	end
