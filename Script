@@ -1,6 +1,6 @@
 -- BMF Menu - Piggy (Book 1)
--- Fully remade UI 
--- V2.0.2 | Made by BMF!
+-- Fully remade UI (Squid Game X layout) + lag-free ESP / God Mode / Allies
+-- V2.0.3 | Made by BMF!
 -- PASTE THIS ENTIRE FILE into your executor. Do NOT wrap it in loadstring(game:HttpGet(...)).
 
 if not game:IsLoaded() then
@@ -129,7 +129,7 @@ Title.BorderSizePixel = 0
 
 local VersionLabel = Instance.new("TextLabel")
 VersionLabel.Parent = MainFrame
-VersionLabel.Text = "V2.0.2"
+VersionLabel.Text = "V2.0.3"
 VersionLabel.Size = UDim2.new(0, 150, 0, 20)
 VersionLabel.AnchorPoint = Vector2.new(0, 1)
 VersionLabel.Position = UDim2.new(0, 15, 1, -10)
@@ -254,7 +254,7 @@ end)
 pcall(function()
 	StarterGui:SetCore("SendNotification", {
 		Title = "BMF Menu Loaded!",
-		Text = "Piggy (Book 1) V2.0.2 ready. Press Delete to toggle.",
+		Text = "Piggy (Book 1) V2.0.3 ready. Press Delete to toggle.",
 		Duration = 8,
 	})
 end)
@@ -882,7 +882,6 @@ local realUserCFrame = nil
 
 local SAFE_ROOM_CF = CFrame.new(-375, -4, -83)
 local LOBBY_CF = CFrame.new(-453, -27, -92)
-local FAKE_INVIS_CF = CFrame.new(99999, 99999, 99999)
 
 local TRICK_SPOTS = {
 	House = CFrame.new(25, 55, -95),
@@ -904,7 +903,6 @@ local function isNearSpoofSpot(cf)
 	local pos = cf.Position
 	if (pos - SAFE_ROOM_CF.Position).Magnitude < 25 then return true end
 	if (pos - LOBBY_CF.Position).Magnitude < 25 then return true end
-	if (pos - FAKE_INVIS_CF.Position).Magnitude < 1000 then return true end
 	
 	for _, spotCF in pairs(TRICK_SPOTS) do
 		if (pos - spotCF.Position).Magnitude < 25 then
@@ -1740,6 +1738,8 @@ local alliesNoDamageEnabled = false
 local trickBotsEnabled = false
 local fakeInvisEndTime = 0
 local cframeSpoofPending = false
+local trickHoldVel = nil
+local trickHoldAng = nil
 
 local godTracked = {}
 local alliesTracked = {}
@@ -2146,8 +2146,8 @@ RunService.Heartbeat:Connect(function()
 		
 		local spoofCF = nil
 		if os.clock() < fakeInvisEndTime then
-			-- Infinitely high distance check makes the bot immediately recalculate target in 0.1s
-			spoofCF = FAKE_INVIS_CF
+			-- Back to LOBBY_CF so physics instantly flags target unreachable vs distant coordinates.
+			spoofCF = LOBBY_CF
 		elseif trickBotsEnabled then
 			local currentMap = getCurrentMapName()
 			if currentMap and TRICK_SPOTS[currentMap] then
@@ -2159,6 +2159,10 @@ RunService.Heartbeat:Connect(function()
 			if not realUserCFrame then
 				realUserCFrame = myHRP.CFrame
 			end
+			pcall(function()
+				trickHoldVel = myHRP.AssemblyLinearVelocity
+				trickHoldAng = myHRP.AssemblyAngularVelocity
+			end)
 			if not flying then
 				myHRP.CFrame = spoofCF
 				pcall(function()
@@ -2171,6 +2175,12 @@ RunService.Heartbeat:Connect(function()
 			if cframeSpoofPending then
 				if realUserCFrame and not flying then
 					myHRP.CFrame = realUserCFrame
+					if trickHoldVel then
+						pcall(function()
+							myHRP.AssemblyLinearVelocity = trickHoldVel
+							myHRP.AssemblyAngularVelocity = trickHoldAng or Vector3.zero
+						end)
+					end
 				end
 				cframeSpoofPending = false
 			end
@@ -2186,6 +2196,12 @@ RunService:BindToRenderStep("BMF_VisualRestore", Enum.RenderPriority.Camera.Valu
 		local hrp = getLocalHRP()
 		if hrp then
 			hrp.CFrame = realUserCFrame
+			if trickHoldVel then
+				pcall(function()
+					hrp.AssemblyLinearVelocity = trickHoldVel
+					hrp.AssemblyAngularVelocity = trickHoldAng or Vector3.zero
+				end)
+			end
 		end
 	end
 end)
@@ -2198,6 +2214,12 @@ RunService.Stepped:Connect(function()
 		local hrp = getLocalHRP()
 		if hrp then
 			hrp.CFrame = realUserCFrame
+			if trickHoldVel then
+				pcall(function()
+					hrp.AssemblyLinearVelocity = trickHoldVel
+					hrp.AssemblyAngularVelocity = trickHoldAng or Vector3.zero
+				end)
+			end
 		end
 	end
 end)
@@ -2205,6 +2227,8 @@ end)
 LocalPlayer.CharacterAdded:Connect(function(char)
 	realUserCFrame = nil
 	cframeSpoofPending = false
+	trickHoldVel = nil
+	trickHoldAng = nil
 	mrPModel = nil
 
 	char.ChildAdded:Connect(function(child)
