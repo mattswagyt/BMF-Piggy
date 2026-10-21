@@ -1,6 +1,6 @@
 -- BMF Menu - Piggy (Book 1)
--- Fully remade UI (Squid Game X layout) + lag-free ESP / God Mode / Allies
--- V2.0.1 | Made by BMF!
+-- Fully remade UI
+-- V2.0.2 | Made by BMF!
 -- PASTE THIS ENTIRE FILE into your executor. Do NOT wrap it in loadstring(game:HttpGet(...)).
 
 if not game:IsLoaded() then
@@ -50,6 +50,16 @@ local BANANA = Color3.fromRGB(255, 255, 102)
 local DARK_GREEN = Color3.fromRGB(0, 100, 0)
 local LIGHT_PURPLE = Color3.fromRGB(200, 160, 255)
 local HOT_PINK = Color3.fromRGB(255, 105, 180)
+local GRAY = Color3.fromRGB(128, 128, 128)
+
+-- Gamemode specific Colors
+local BLUE = Color3.fromRGB(0, 0, 255)
+local DARK_RED = Color3.fromRGB(139, 0, 0)
+local DARK_GRAY = Color3.fromRGB(50, 50, 50)
+local LIGHT_GRAY = Color3.fromRGB(200, 200, 200)
+local LIGHT_PURPLE_GM = Color3.fromRGB(200, 160, 255)
+local DARK_BLUE_GM = Color3.fromRGB(0, 0, 139)
+local DARK_PINK = Color3.fromRGB(255, 20, 147)
 
 local TITLE_FONT = Enum.Font.SourceSansBold
 pcall(function()
@@ -119,7 +129,7 @@ Title.BorderSizePixel = 0
 
 local VersionLabel = Instance.new("TextLabel")
 VersionLabel.Parent = MainFrame
-VersionLabel.Text = "V2.0.1"
+VersionLabel.Text = "V2.0.2"
 VersionLabel.Size = UDim2.new(0, 150, 0, 20)
 VersionLabel.AnchorPoint = Vector2.new(0, 1)
 VersionLabel.Position = UDim2.new(0, 15, 1, -10)
@@ -341,6 +351,15 @@ local function isInGameRound()
 		end
 	end
 	return false
+end
+
+local function getCurrentMapName()
+	for _, mapName in ipairs(GAME_MAP_NAMES) do
+		if workspace:FindFirstChild(mapName) then
+			return mapName
+		end
+	end
+	return nil
 end
 
 --------------------------------------------------
@@ -576,7 +595,7 @@ end
 
 local StatusFrame = Instance.new("Frame")
 StatusFrame.Parent = HomeScroll
-StatusFrame.Size = UDim2.new(1, -10, 0, 112)
+StatusFrame.Size = UDim2.new(1, -10, 0, 164)
 StatusFrame.BackgroundColor3 = PINK_STATUS
 StatusFrame.BorderSizePixel = 0
 StatusFrame.LayoutOrder = 1
@@ -633,6 +652,28 @@ PlayersCountLabel.Font = UI_FONT
 PlayersCountLabel.TextSize = 14
 PlayersCountLabel.TextXAlignment = Enum.TextXAlignment.Left
 PlayersCountLabel.LayoutOrder = 4
+
+local MapLabel = Instance.new("TextLabel")
+MapLabel.Parent = StatusFrame
+MapLabel.Size = UDim2.new(1, -10, 0, 26)
+MapLabel.BackgroundTransparency = 1
+MapLabel.Text = "Map: None"
+MapLabel.TextColor3 = BLUE
+MapLabel.Font = UI_FONT
+MapLabel.TextSize = 14
+MapLabel.TextXAlignment = Enum.TextXAlignment.Left
+MapLabel.LayoutOrder = 5
+
+local GamemodeLabel = Instance.new("TextLabel")
+GamemodeLabel.Parent = StatusFrame
+GamemodeLabel.Size = UDim2.new(1, -10, 0, 26)
+GamemodeLabel.BackgroundTransparency = 1
+GamemodeLabel.Text = "Gamemode: None"
+GamemodeLabel.TextColor3 = YELLOW
+GamemodeLabel.Font = UI_FONT
+GamemodeLabel.TextSize = 14
+GamemodeLabel.TextXAlignment = Enum.TextXAlignment.Left
+GamemodeLabel.LayoutOrder = 6
 
 local StatusPad = Instance.new("UIPadding")
 StatusPad.Parent = StatusFrame
@@ -756,6 +797,65 @@ task.spawn(function()
 		local piggyName = getPiggyPlayerName()
 		PiggyLabel.Text = piggyName and ("Piggy: " .. piggyName) or "Piggy: Bot"
 		PlayersCountLabel.Text = "Players: " .. tostring(#Players:GetPlayers())
+		
+		-- Map Check
+		local currentMap = getCurrentMapName() or "None"
+		MapLabel.Text = "Map: " .. currentMap
+		
+		-- Gamemode Check
+		local gmName = "None"
+		local gmColor = YELLOW
+		
+		local gameFolder = workspace:FindFirstChild("GameFolder")
+		local piggyNPCFolder = workspace:FindFirstChild("PiggyNPC")
+		
+		local botCount = 0
+		if piggyNPCFolder then
+			for _, bot in ipairs(piggyNPCFolder:GetChildren()) do
+				if bot:IsA("Model") and not string.lower(bot.Name):find("trap") then
+					botCount = botCount + 1
+				end
+			end
+		end
+		
+		local hasPlayerPiggy = (piggyName ~= nil)
+
+		if gameFolder and gameFolder:FindFirstChild("InfectionEnabled") and gameFolder.InfectionEnabled.Value == true then
+			gmName = "Infection"
+			gmColor = GREEN
+		elseif gameFolder and gameFolder:FindFirstChild("TraitorEnabled") and gameFolder.TraitorEnabled.Value == true then
+			gmName = "Traitor"
+			gmColor = DARK_RED
+		elseif gameFolder and gameFolder:FindFirstChild("TagEnabled") and gameFolder.TagEnabled.Value == true then
+			gmName = "Tag"
+			gmColor = DARK_GRAY
+		else
+			if botCount >= 2 then
+				if currentMap == "Mall" and piggyNPCFolder and piggyNPCFolder:FindFirstChild("Proto") and botCount < 3 then
+					-- Ignore swarm until 3rd model in Mall with Proto
+				else
+					gmName = "Swarm"
+					gmColor = LIGHT_GRAY
+				end
+			end
+			
+			if gmName == "None" then
+				if botCount > 0 and hasPlayerPiggy then
+					gmName = "Player + Bot"
+					gmColor = LIGHT_PURPLE_GM
+				elseif botCount == 1 and not hasPlayerPiggy then
+					gmName = "Bot"
+					gmColor = DARK_BLUE_GM
+				elseif botCount == 0 and hasPlayerPiggy then
+					gmName = "Player"
+					gmColor = DARK_PINK
+				end
+			end
+		end
+
+		GamemodeLabel.Text = "Gamemode: " .. gmName
+		GamemodeLabel.TextColor3 = gmColor
+
 		task.wait(0.5)
 	end
 end)
@@ -1114,6 +1214,13 @@ local function detectEnemyInfo(model)
 	if not model or not model:IsA("Model") then
 		return nil
 	end
+	
+	-- STRICT ENEMY CHECK: Prevents highlighting doors/safes completely.
+	local enemyVal = model:FindFirstChild("Enemy")
+	if not (enemyVal and enemyVal:IsA("BoolValue") and enemyVal.Value == true) then
+		return nil
+	end
+
 	if Players:GetPlayerFromCharacter(model) then
 		return nil
 	end
@@ -1137,10 +1244,7 @@ local function detectEnemyInfo(model)
 
 	-- 2. Doggy (Enemy)
 	if model:FindFirstChild("DogHead", true) then
-		local enemyVal = model:FindFirstChild("Enemy")
-		if enemyVal and enemyVal:IsA("BoolValue") and enemyVal.Value == true then
-			return "Doggy", BROWN
-		end
+		return "Doggy", BROWN
 	end
 
 	-- 3. Grandmother (PiggyHead ONLY if workspace.City exists)
@@ -1170,6 +1274,11 @@ local function detectEnemyInfo(model)
 		if (isMrPName or photoReady) and not model:FindFirstChild("GeorgieHead", true) then
 			return "Mr. P", PURPLE
 		end
+	end
+
+	-- Fallback if they explicitly have the Enemy BoolValue to true
+	if model:FindFirstChild("HumanoidRootPart") then
+		return cleanBotName(model.Name), RED
 	end
 
 	return nil
@@ -1510,13 +1619,24 @@ RunService.RenderStepped:Connect(function()
 				if char and char:FindFirstChild("HumanoidRootPart") then
 					local color = GREEN
 					local label = plr.Name
-					if isEnemyCharacter(char) then
-						color = RED
+					
+					local isGhost = false
+					if plr:FindFirstChild("Ghost") and plr.Ghost:IsA("BoolValue") and plr.Ghost.Value == true then
+						isGhost = true
+					elseif char:FindFirstChild("Ghost") and char.Ghost:IsA("BoolValue") and char.Ghost.Value == true then
+						isGhost = true
 					end
-					if isTraitorPlayer(plr, char) then
+
+					if isGhost then
+						color = GRAY
+						label = label .. " (Ghost)"
+					elseif isEnemyCharacter(char) then
+						color = RED
+					elseif isTraitorPlayer(plr, char) then
 						color = RED
 						label = "TRAITOR"
 					end
+					
 					highlightTarget(char, color, "BMF_Highlight")
 					updateTracer(char, color, "player_" .. plr.Name)
 					updateNameTag(char, label, color)
@@ -1584,11 +1704,15 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------
--- EXPLOITS TAB (God Mode shield removed completely)
+-- EXPLOITS TAB 
 --------------------------------------------------
 
 local godModeEnabled = false
 local alliesNoDamageEnabled = false
+local trickBotsEnabled = false
+local fakeInvisEndTime = 0
+local cframeSpoofPending = false
+
 local godTracked = {}
 local alliesTracked = {}
 
@@ -1604,6 +1728,21 @@ local GOD_MAPS = {
 	{ name = "City", head = "PiggyHead", grandmother = true },
 	{ name = "Carnival", head = "FoxyHead", grandmother = false },
 	{ name = "Forest", head = "DogHead", grandmother = false },
+}
+
+local TRICK_SPOTS = {
+	House = CFrame.new(25, 55, -95),
+	Station = CFrame.new(43, 60, 606),
+	Gallery = CFrame.new(-621, 125, -336),
+	Forest = CFrame.new(-90, 55, -431),
+	School = CFrame.new(65, -10, -151),
+	Hospital = CFrame.new(-9, 15, -285),
+	Metro = CFrame.new(239, 20, 66),
+	Carnival = CFrame.new(-404, 101, 388),
+	City = CFrame.new(-115, 84, 1105),
+	Mall = CFrame.new(-683, 50, -573),
+	Outpost = CFrame.new(-1164, 121, 218),
+	Plant = CFrame.new(-150, 61, 740)
 }
 
 local function applyGodModeSelf()
@@ -1880,29 +2019,6 @@ local mrPNoDamageEnabled = false
 local mrPModel = nil
 local mrPPlantRef = nil
 local mrPLastScan = 0
-local mrPHoldVel = nil
-local mrPHoldAng = nil
-local mrPSpoofPending = false
-
-local function applyMrPHold()
-	if not realUserCFrame then
-		return
-	end
-	local hrp = getLocalHRP()
-	if not hrp then
-		return
-	end
-	if flying then
-		return
-	end
-	hrp.CFrame = realUserCFrame
-	if mrPHoldVel then
-		pcall(function()
-			hrp.AssemblyLinearVelocity = mrPHoldVel
-			hrp.AssemblyAngularVelocity = mrPHoldAng or Vector3.zero
-		end)
-	end
-end
 
 local function destroyMrPRootTouch(hrp)
 	if not hrp then
@@ -1957,90 +2073,106 @@ local function findMrPModel(plant)
 	return nil
 end
 
-local function desyncFromMrP(model)
-	local myHRP = getLocalHRP()
-	if not myHRP then
-		return
-	end
-
-	updateRealPosition()
-
-	if not realUserCFrame then
-		realUserCFrame = myHRP.CFrame
-	end
-
-	pcall(function()
-		mrPHoldVel = myHRP.AssemblyLinearVelocity
-		mrPHoldAng = myHRP.AssemblyAngularVelocity
-	end)
-
-	if flying then
-		return
-	end
-
-	myHRP.CFrame = SAFE_ROOM_CF
-	pcall(function()
-		myHRP.AssemblyLinearVelocity = Vector3.zero
-		myHRP.AssemblyAngularVelocity = Vector3.zero
-	end)
-	mrPSpoofPending = true
-end
-
-local mrPBtn = createButton(ExploitsScroll, "Mr. P Doesn't Deal Damage (WIP!): OFF", function(button)
+local mrPBtn = createButton(ExploitsScroll, "Mr. P Doesn't Deal Damage: OFF", function(button)
 	mrPNoDamageEnabled = not mrPNoDamageEnabled
-	setToggleVisual(button, mrPNoDamageEnabled, "Mr. P Doesn't Deal Damage (WIP!): ON", "Mr. P Doesn't Deal Damage (WIP!): OFF")
+	setToggleVisual(button, mrPNoDamageEnabled, "Mr. P Doesn't Deal Damage: ON", "Mr. P Doesn't Deal Damage: OFF")
 	if not mrPNoDamageEnabled then
-		applyMrPHold()
 		mrPModel = nil
 		mrPPlantRef = nil
-		mrPHoldVel = nil
-		mrPHoldAng = nil
-		mrPSpoofPending = false
 	end
 end)
 mrPBtn.TextColor3 = RED
 
+local trickBotsBtn = createButton(ExploitsScroll, "Trick Bots (Troll): OFF", function(button)
+	trickBotsEnabled = not trickBotsEnabled
+	setToggleVisual(button, trickBotsEnabled, "Trick Bots (Troll): ON", "Trick Bots (Troll): OFF")
+	if not trickBotsEnabled and not (os.clock() < fakeInvisEndTime) then
+		cframeSpoofPending = true -- Request restore
+	end
+end)
+trickBotsBtn.TextColor3 = RED
+
+local fakeInvisBtn = createButton(ExploitsScroll, "Fake Invisibility Ability", function()
+	fakeInvisEndTime = os.clock() + 10
+	StarterGui:SetCore("SendNotification", {
+		Title = "Fake Invisibility",
+		Text = "Active for 10 seconds. You are temporarily hidden!",
+		Duration = 3,
+	})
+end)
+
 RunService.Heartbeat:Connect(function()
-	if not mrPNoDamageEnabled then
-		return
-	end
-	local plant = workspace:FindFirstChild("Plant")
-	if not plant then
-		if mrPSpoofPending then
-			applyMrPHold()
-			mrPSpoofPending = false
-		end
-		mrPModel = nil
-		mrPPlantRef = nil
-		return
-	end
-	if mrPPlantRef ~= plant then
-		mrPPlantRef = plant
-		mrPModel = nil
-	end
-	local now = os.clock()
-	if (now - mrPLastScan) > 0.2 or not (mrPModel and mrPModel.Parent) then
-		mrPLastScan = now
-		local fresh = findMrPModel(plant)
-		if fresh then
-			mrPModel = fresh
+	if mrPNoDamageEnabled then
+		local plant = workspace:FindFirstChild("Plant")
+		if not plant then
+			mrPModel = nil
+			mrPPlantRef = nil
+		else
+			if mrPPlantRef ~= plant then
+				mrPPlantRef = plant
+				mrPModel = nil
+			end
+			local now = os.clock()
+			if (now - mrPLastScan) > 0.2 or not (mrPModel and mrPModel.Parent) then
+				mrPLastScan = now
+				local fresh = findMrPModel(plant)
+				if fresh then
+					mrPModel = fresh
+				end
+			end
+			if mrPModel and mrPModel.Parent then
+				neuterMrP(mrPModel)
+			end
 		end
 	end
-	if mrPModel and mrPModel.Parent then
-		neuterMrP(mrPModel)
-		desyncFromMrP(mrPModel)
-	elseif mrPSpoofPending then
-		applyMrPHold()
-		mrPSpoofPending = false
+
+	-- CFrame Spoofing Logic (Trick Bots / Fake Invisibility)
+	local myHRP = getLocalHRP()
+	if myHRP then
+		updateRealPosition()
+		
+		local spoofCF = nil
+		if os.clock() < fakeInvisEndTime then
+			spoofCF = CFrame.new(-453, -27, -92)
+		elseif trickBotsEnabled then
+			local currentMap = getCurrentMapName()
+			if currentMap and TRICK_SPOTS[currentMap] then
+				spoofCF = TRICK_SPOTS[currentMap]
+			end
+		end
+
+		if spoofCF then
+			if not realUserCFrame then
+				realUserCFrame = myHRP.CFrame
+			end
+			if not flying then
+				myHRP.CFrame = spoofCF
+				pcall(function()
+					myHRP.AssemblyLinearVelocity = Vector3.zero
+					myHRP.AssemblyAngularVelocity = Vector3.zero
+				end)
+				cframeSpoofPending = true
+			end
+		else
+			if cframeSpoofPending then
+				if realUserCFrame and not flying then
+					myHRP.CFrame = realUserCFrame
+				end
+				cframeSpoofPending = false
+			end
+		end
 	end
 end)
 
 pcall(function()
-	RunService:UnbindFromRenderStep("BMF_MrPVisual")
+	RunService:UnbindFromRenderStep("BMF_VisualRestore")
 end)
-RunService:BindToRenderStep("BMF_MrPVisual", Enum.RenderPriority.Camera.Value - 1, function()
-	if mrPSpoofPending then
-		applyMrPHold()
+RunService:BindToRenderStep("BMF_VisualRestore", Enum.RenderPriority.Camera.Value - 1, function()
+	if cframeSpoofPending and realUserCFrame and not flying then
+		local hrp = getLocalHRP()
+		if hrp then
+			hrp.CFrame = realUserCFrame
+		end
 	end
 end)
 
@@ -2048,18 +2180,17 @@ RunService.Stepped:Connect(function()
 	if godModeEnabled then
 		applyGodModeSelf()
 	end
-	if not mrPSpoofPending then
-		return
+	if cframeSpoofPending and realUserCFrame and not flying then
+		local hrp = getLocalHRP()
+		if hrp then
+			hrp.CFrame = realUserCFrame
+		end
 	end
-	applyMrPHold()
-	mrPSpoofPending = false
 end)
 
 LocalPlayer.CharacterAdded:Connect(function(char)
 	realUserCFrame = nil
-	mrPHoldVel = nil
-	mrPHoldAng = nil
-	mrPSpoofPending = false
+	cframeSpoofPending = false
 	mrPModel = nil
 
 	char.ChildAdded:Connect(function(child)
@@ -2171,6 +2302,16 @@ createButton(TeleportsScroll, "Piggy Room (Safe Spot)", function()
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if hrp then
 		hrp.CFrame = CFrame.new(-375, -4, -83)
+	else
+		logError("No HumanoidRootPart to teleport")
+	end
+end)
+
+createButton(TeleportsScroll, "In-Lobby Room", function()
+	local character = LocalPlayer.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		hrp.CFrame = CFrame.new(-453, -27, -92)
 	else
 		logError("No HumanoidRootPart to teleport")
 	end
