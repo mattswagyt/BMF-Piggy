@@ -1,5 +1,5 @@
 -- BMF Menu - Piggy (Book 1)
--- Fully remade UI
+-- Fully remade UI 
 -- V2.0.2 | Made by BMF!
 -- PASTE THIS ENTIRE FILE into your executor. Do NOT wrap it in loadstring(game:HttpGet(...)).
 
@@ -254,7 +254,7 @@ end)
 pcall(function()
 	StarterGui:SetCore("SendNotification", {
 		Title = "BMF Menu Loaded!",
-		Text = "Piggy (Book 1) V2.0.1 ready. Press Delete to toggle.",
+		Text = "Piggy (Book 1) V2.0.2 ready. Press Delete to toggle.",
 		Duration = 8,
 	})
 end)
@@ -881,10 +881,37 @@ local collideSnapshot = nil
 local realUserCFrame = nil
 
 local SAFE_ROOM_CF = CFrame.new(-375, -4, -83)
+local LOBBY_CF = CFrame.new(-453, -27, -92)
+local FAKE_INVIS_CF = CFrame.new(99999, 99999, 99999)
 
-local function isNearSafeRoom(cf)
+local TRICK_SPOTS = {
+	House = CFrame.new(25, 55, -95),
+	Station = CFrame.new(43, 60, 606),
+	Gallery = CFrame.new(-621, 125, -336),
+	Forest = CFrame.new(-90, 55, -431),
+	School = CFrame.new(65, -10, -151),
+	Hospital = CFrame.new(-9, 15, -285),
+	Metro = CFrame.new(239, 20, 66),
+	Carnival = CFrame.new(-404, 101, 388),
+	City = CFrame.new(-115, 84, 1105),
+	Mall = CFrame.new(-683, 50, -573),
+	Outpost = CFrame.new(-1164, 121, 218),
+	Plant = CFrame.new(-150, 61, 740)
+}
+
+local function isNearSpoofSpot(cf)
 	if not cf then return false end
-	return (cf.Position - SAFE_ROOM_CF.Position).Magnitude < 15
+	local pos = cf.Position
+	if (pos - SAFE_ROOM_CF.Position).Magnitude < 25 then return true end
+	if (pos - LOBBY_CF.Position).Magnitude < 25 then return true end
+	if (pos - FAKE_INVIS_CF.Position).Magnitude < 1000 then return true end
+	
+	for _, spotCF in pairs(TRICK_SPOTS) do
+		if (pos - spotCF.Position).Magnitude < 25 then
+			return true
+		end
+	end
+	return false
 end
 
 local function getLocalHRP()
@@ -900,7 +927,8 @@ local function updateRealPosition()
 	local hrp = getLocalHRP()
 	if not hrp then return end
 	local currentCF = hrp.CFrame
-	if not isNearSafeRoom(currentCF) then
+	-- Ensures we don't cache our spoofed locations as our real position
+	if not isNearSpoofSpot(currentCF) then
 		realUserCFrame = currentCF
 	end
 end
@@ -1730,21 +1758,6 @@ local GOD_MAPS = {
 	{ name = "Forest", head = "DogHead", grandmother = false },
 }
 
-local TRICK_SPOTS = {
-	House = CFrame.new(25, 55, -95),
-	Station = CFrame.new(43, 60, 606),
-	Gallery = CFrame.new(-621, 125, -336),
-	Forest = CFrame.new(-90, 55, -431),
-	School = CFrame.new(65, -10, -151),
-	Hospital = CFrame.new(-9, 15, -285),
-	Metro = CFrame.new(239, 20, 66),
-	Carnival = CFrame.new(-404, 101, 388),
-	City = CFrame.new(-115, 84, 1105),
-	Mall = CFrame.new(-683, 50, -573),
-	Outpost = CFrame.new(-1164, 121, 218),
-	Plant = CFrame.new(-150, 61, 740)
-}
-
 local function applyGodModeSelf()
 	if not godModeEnabled then
 		return
@@ -2133,7 +2146,8 @@ RunService.Heartbeat:Connect(function()
 		
 		local spoofCF = nil
 		if os.clock() < fakeInvisEndTime then
-			spoofCF = CFrame.new(-453, -27, -92)
+			-- Infinitely high distance check makes the bot immediately recalculate target in 0.1s
+			spoofCF = FAKE_INVIS_CF
 		elseif trickBotsEnabled then
 			local currentMap = getCurrentMapName()
 			if currentMap and TRICK_SPOTS[currentMap] then
