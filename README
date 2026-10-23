@@ -28,4 +28,14 @@ My scripts have are 100% free & keyless, safe to use, optimized for lag with the
 
 Thank you for using my piggy scripts!
 
+Book 1 Loadstring Script for ROBLOX Piggy:
+
+loadstring(game:HttpGet('https://raw.githubusercontent.com/mattswagyt/BMF-Piggy/refs/heads/main/Script'))()
+
+Book 2 Loadstring Script for ROBLOX Piggy:
+
+loadstring(game:HttpGet('https://raw.githubusercontent.com/mattswagyt/BMF-Piggy/refs/heads/main/Book-2-Script'))()
+
+*Note:* No, I do not expect you to paste the full entire lua script directly into your executor. I understand, which is why I'm providing both loadstrings as I use both of them myself personally for my executor. Dw, I get it lol. It's a single line, and literally the best and easiest to use for executors.
+
 (:
