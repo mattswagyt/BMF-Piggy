@@ -1,6 +1,6 @@
 -- BMF Menu - Piggy (Book 1)
 -- V2.0.4 | Made by BMF!
--- Obtain loadstring via the README file of the respitory
+-- Obtain loadstring via README file
 
 if not game:IsLoaded() then
 	game.Loaded:Wait()
@@ -1817,6 +1817,7 @@ local trickBotsEnabled = false
 local fakeInvisEndTime = 0
 local cframeSpoofPending = false
 local controlledModel = nil
+local originalBotCFrame = nil
 
 local godTracked = {}
 local alliesTracked = {}
@@ -2219,6 +2220,30 @@ task.spawn(function()
 	end
 end)
 
+local function applyControl(val)
+	if val == "STOP" then
+		controlledModel = nil
+		if workspace.CurrentCamera and LocalPlayer.Character then
+			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+		end
+	else
+		controlledModel = val
+		local myChar = LocalPlayer.Character
+		if myChar and myChar:FindFirstChild("HumanoidRootPart") and val:FindFirstChild("HumanoidRootPart") then
+			myChar.HumanoidRootPart.CFrame = val.HumanoidRootPart.CFrame
+		end
+		if workspace.CurrentCamera and val:FindFirstChild("Humanoid") then
+			workspace.CurrentCamera.CameraSubject = val.Humanoid
+		end
+		
+		-- Try to stop the bot from fighting control locally
+		pcall(function()
+			local mainScript = val:FindFirstChild("BotMainScript") or val:FindFirstChild("SwarmBotMainScript")
+			if mainScript then mainScript.Disabled = true end
+		end)
+	end
+end
+
 createDropdown(ExploitsScroll, "Control Bot (WIP)", function()
 	local opts = {{name = "Stop Controlling", value = "STOP"}}
 	local piggyFolder = workspace:FindFirstChild("PiggyNPC")
@@ -2228,19 +2253,7 @@ createDropdown(ExploitsScroll, "Control Bot (WIP)", function()
 		end
 	end
 	return opts
-end, function(val)
-	if val == "STOP" then
-		controlledModel = nil
-		if workspace.CurrentCamera and LocalPlayer.Character then
-			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
-		end
-	else
-		controlledModel = val
-		if workspace.CurrentCamera and val:FindFirstChild("Humanoid") then
-			workspace.CurrentCamera.CameraSubject = val.Humanoid
-		end
-	end
-end)
+end, applyControl)
 
 createDropdown(ExploitsScroll, "Control Enemy (WIP)", function()
 	local opts = {{name = "Stop Controlling", value = "STOP"}}
@@ -2260,19 +2273,7 @@ createDropdown(ExploitsScroll, "Control Enemy (WIP)", function()
 		end
 	end
 	return opts
-end, function(val)
-	if val == "STOP" then
-		controlledModel = nil
-		if workspace.CurrentCamera and LocalPlayer.Character then
-			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
-		end
-	else
-		controlledModel = val
-		if workspace.CurrentCamera and val:FindFirstChild("Humanoid") then
-			workspace.CurrentCamera.CameraSubject = val.Humanoid
-		end
-	end
-end)
+end, applyControl)
 
 local BOTS_LIST = {
 	"PiggyBot", "MotherBot", "FatherBot", "SheepyBot", "DoggyNPC", "DoggyBot",
@@ -2312,9 +2313,20 @@ end, function(val)
 			piggyFolder.Parent = workspace
 		end
 		
-		local spawnPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
+		-- Spawn behind an existing Piggy bot, or default to player if none found
+		local spawnPos = nil
+		for _, existingBot in ipairs(piggyFolder:GetChildren()) do
+			if existingBot:IsA("Model") and existingBot:FindFirstChild("HumanoidRootPart") then
+				spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
+				break
+			end
+		end
+		
+		if not spawnPos then
+			spawnPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
 						 and LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
 						 or CFrame.new(0, 5, 0)
+		end
 		
 		if clone:FindFirstChild("HumanoidRootPart") then
 			clone:SetPrimaryPartCFrame(spawnPos)
@@ -2323,6 +2335,29 @@ end, function(val)
 		end
 		
 		clone.Parent = piggyFolder
+		
+		-- Local AI Simulation to make spawned bots chase if server script fails
+		task.spawn(function()
+			local botHum = clone:FindFirstChildOfClass("Humanoid")
+			local botHrp = clone:FindFirstChild("HumanoidRootPart")
+			if botHum and botHrp then
+				while clone.Parent do
+					local target, dist = nil, math.huge
+					for _, plr in ipairs(Players:GetPlayers()) do
+						if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+							local d = (plr.Character.HumanoidRootPart.Position - botHrp.Position).Magnitude
+							if d < dist then
+								dist = d
+								target = plr.Character.HumanoidRootPart
+							end
+						end
+					end
+					if target then botHum:MoveTo(target.Position) end
+					task.wait(0.2)
+				end
+			end
+		end)
+		
 		StarterGui:SetCore("SendNotification", { Title = "Spawned", Text = val .. " spawned successfully!", Duration = 3 })
 	else
 		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage.")
@@ -2417,6 +2452,7 @@ LocalPlayer.CharacterAdded:Connect(function(char)
 	realUserCFrame = nil
 	cframeSpoofPending = false
 	mrPModel = nil
+	controlledModel = nil
 
 	char.ChildAdded:Connect(function(child)
 		if godModeEnabled and child.Name == "Health" then
