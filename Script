@@ -250,13 +250,81 @@ UIS.InputBegan:Connect(function(input, gp)
 	end
 end)
 
-pcall(function()
-	StarterGui:SetCore("SendNotification", {
-		Title = "BMF Menu Loaded!",
-		Text = "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.",
-		Duration = 8,
-	})
-end)
+local function safeNotify(title, text, duration)
+	-- SetCore("SendNotification") crashes CoreGui.Locales.en-us ("attempt to call a nil value").
+	-- Draw the same notice on our own ScreenGui so those features still announce themselves.
+	task.spawn(function()
+		local ok = pcall(function()
+			local holder = ScreenGui:FindFirstChild("BMF_Notices")
+			if not holder then
+				holder = Instance.new("Frame")
+				holder.Name = "BMF_Notices"
+				holder.BackgroundTransparency = 1
+				holder.AnchorPoint = Vector2.new(1, 0)
+				holder.Position = UDim2.new(1, -16, 0, 16)
+				holder.Size = UDim2.new(0, 320, 1, -32)
+				holder.ZIndex = 50
+				holder.Parent = ScreenGui
+				local layout = Instance.new("UIListLayout")
+				layout.Padding = UDim.new(0, 6)
+				layout.SortOrder = Enum.SortOrder.LayoutOrder
+				layout.VerticalAlignment = Enum.VerticalAlignment.Top
+				layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+				layout.Parent = holder
+			end
+			local card = Instance.new("Frame")
+			card.Size = UDim2.new(1, 0, 0, 68)
+			card.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+			card.BackgroundTransparency = 0.1
+			card.BorderSizePixel = 0
+			card.ZIndex = 51
+			card.Parent = holder
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 6)
+			corner.Parent = card
+			local accent = Instance.new("Frame")
+			accent.Size = UDim2.new(0, 4, 1, 0)
+			accent.BackgroundColor3 = PINK
+			accent.BorderSizePixel = 0
+			accent.ZIndex = 52
+			accent.Parent = card
+			local titleLabel = Instance.new("TextLabel")
+			titleLabel.BackgroundTransparency = 1
+			titleLabel.Position = UDim2.new(0, 14, 0, 6)
+			titleLabel.Size = UDim2.new(1, -22, 0, 22)
+			titleLabel.Font = UI_FONT
+			titleLabel.TextSize = 16
+			titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+			titleLabel.TextColor3 = WHITE
+			titleLabel.Text = tostring(title or "")
+			titleLabel.ZIndex = 52
+			titleLabel.Parent = card
+			local body = Instance.new("TextLabel")
+			body.BackgroundTransparency = 1
+			body.Position = UDim2.new(0, 14, 0, 28)
+			body.Size = UDim2.new(1, -22, 0, 34)
+			body.Font = BODY_FONT
+			body.TextSize = 14
+			body.TextWrapped = true
+			body.TextXAlignment = Enum.TextXAlignment.Left
+			body.TextYAlignment = Enum.TextYAlignment.Top
+			body.TextColor3 = Color3.fromRGB(230, 230, 230)
+			body.Text = tostring(text or "")
+			body.ZIndex = 52
+			body.Parent = card
+			task.delay(tonumber(duration) or 5, function()
+				pcall(function()
+					card:Destroy()
+				end)
+			end)
+		end)
+		if not ok then
+			return
+		end
+	end)
+end
+
+safeNotify("BMF Menu Loaded!", "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.", 8)
 
 --------------------------------------------------
 -- SCROLLING TAB HELPERS
@@ -2185,13 +2253,7 @@ trickBotsBtn.TextColor3 = RED
 
 local fakeInvisBtn = createButton(ExploitsScroll, "Fake Invisibility Ability", function()
 	fakeInvisEndTime = os.clock() + 10
-	pcall(function()
-		StarterGui:SetCore("SendNotification", {
-			Title = "Fake Invisibility",
-			Text = "Active for 10 seconds. You are temporarily hidden!",
-			Duration = 3,
-		})
-	end)
+	safeNotify("Fake Invisibility", "Active for 10 seconds. You are temporarily hidden!", 3)
 end)
 
 local function getSpoofTarget()
@@ -2374,13 +2436,7 @@ end, function(val)
 			end
 		end)
 		
-		pcall(function()
-			StarterGui:SetCore("SendNotification", {
-				Title = "Spawned",
-				Text = val .. " spawned successfully!",
-				Duration = 3,
-			})
-		end)
+		safeNotify("Spawned", val .. " spawned successfully!", 3)
 	else
 		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage.")
 	end
