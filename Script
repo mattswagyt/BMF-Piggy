@@ -68,6 +68,67 @@ local UI_FONT = Enum.Font.SourceSansBold
 local BODY_FONT = Enum.Font.SourceSans
 
 --------------------------------------------------
+-- CUSTOM NOTIFICATION SYSTEM (Bypasses CoreGui Crash)
+--------------------------------------------------
+
+local function BMF_Notify(title, text, duration)
+	duration = duration or 3
+	local sg = Instance.new("ScreenGui")
+	sg.Name = "BMF_Notification"
+	pcall(function()
+		if syn and syn.protect_gui then syn.protect_gui(sg)
+		elseif protectgui then protectgui(sg) end
+	end)
+	
+	local parentGUI = PlayerGui
+	pcall(function()
+		if gethui then parentGUI = gethui()
+		else parentGUI = game:GetService("CoreGui") end
+	end)
+	local parented = pcall(function() sg.Parent = parentGUI end)
+	if not parented or not sg.Parent then sg.Parent = PlayerGui end
+	
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0, 250, 0, 75)
+	frame.Position = UDim2.new(1, -260, 1, -85)
+	frame.BackgroundColor3 = PINK_STATUS
+	frame.BorderSizePixel = 0
+	frame.Parent = sg
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = frame
+	
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size = UDim2.new(1, -10, 0, 25)
+	titleLbl.Position = UDim2.new(0, 5, 0, 5)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Text = title
+	titleLbl.TextColor3 = PINK_HOT
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+	titleLbl.Font = Enum.Font.SourceSansBold
+	titleLbl.TextSize = 16
+	titleLbl.Parent = frame
+	
+	local textLbl = Instance.new("TextLabel")
+	textLbl.Size = UDim2.new(1, -10, 0, 40)
+	textLbl.Position = UDim2.new(0, 5, 0, 30)
+	textLbl.BackgroundTransparency = 1
+	textLbl.Text = text
+	textLbl.TextColor3 = WHITE
+	textLbl.TextXAlignment = Enum.TextXAlignment.Left
+	textLbl.TextYAlignment = Enum.TextYAlignment.Top
+	textLbl.TextWrapped = true
+	textLbl.Font = Enum.Font.SourceSans
+	textLbl.TextSize = 14
+	textLbl.Parent = frame
+	
+	task.delay(duration, function()
+		pcall(function() sg:Destroy() end)
+	end)
+end
+
+--------------------------------------------------
 -- UI SETUP
 --------------------------------------------------
 
@@ -251,11 +312,7 @@ UIS.InputBegan:Connect(function(input, gp)
 end)
 
 pcall(function()
-	StarterGui:SetCore("SendNotification", {
-		Title = "BMF Menu Loaded!",
-		Text = "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.",
-		Duration = 8,
-	})
+	BMF_Notify("BMF Menu Loaded!", "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.", 8)
 end)
 
 --------------------------------------------------
@@ -2185,11 +2242,7 @@ trickBotsBtn.TextColor3 = RED
 
 local fakeInvisBtn = createButton(ExploitsScroll, "Fake Invisibility Ability", function()
 	fakeInvisEndTime = os.clock() + 10
-	StarterGui:SetCore("SendNotification", {
-		Title = "Fake Invisibility",
-		Text = "Active for 10 seconds. You are temporarily hidden!",
-		Duration = 3,
-	})
+	BMF_Notify("Fake Invisibility", "Active for 10 seconds. You are temporarily hidden!", 3)
 end)
 
 local function getSpoofTarget()
@@ -2222,25 +2275,27 @@ end)
 
 local function applyControl(val)
 	if val == "STOP" then
+		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
+			controlledModel.HumanoidRootPart.Anchored = false
+		end
 		controlledModel = nil
 		if workspace.CurrentCamera and LocalPlayer.Character then
 			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
 		end
 	else
+		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
+			controlledModel.HumanoidRootPart.Anchored = false
+		end
+		
 		controlledModel = val
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") and val:FindFirstChild("HumanoidRootPart") then
 			myChar.HumanoidRootPart.CFrame = val.HumanoidRootPart.CFrame
+			val.HumanoidRootPart.Anchored = true
 		end
 		if workspace.CurrentCamera and val:FindFirstChild("Humanoid") then
 			workspace.CurrentCamera.CameraSubject = val.Humanoid
 		end
-		
-		-- Try to stop the bot from fighting control locally
-		pcall(function()
-			local mainScript = val:FindFirstChild("BotMainScript") or val:FindFirstChild("SwarmBotMainScript")
-			if mainScript then mainScript.Disabled = true end
-		end)
 	end
 end
 
@@ -2291,9 +2346,23 @@ createDropdown(ExploitsScroll, "Spawn Bot (Troll, WIP)", function()
 	return opts
 end, function(val)
 	local rs = game:GetService("ReplicatedStorage")
-	local botModel = rs:FindFirstChild(val, true)
-	if botModel and botModel:IsA("Model") then
+	local botModel = nil
+	
+	for _, obj in ipairs(rs:GetDescendants()) do
+		if obj:IsA("Model") and obj.Name == val then
+			botModel = obj
+			break
+		end
+	end
+	
+	if botModel then
 		local clone = botModel:Clone()
+		
+		for _, part in ipairs(clone:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Anchored = false
+			end
+		end
 		
 		if not clone:FindFirstChild("BotMainScript") and not clone:FindFirstChild("SwarmBotMainScript") then
 			local scriptToClone = rs:FindFirstChild("BotMainScript", true) or rs:FindFirstChild("SwarmBotMainScript", true)
@@ -2313,18 +2382,17 @@ end, function(val)
 			piggyFolder.Parent = workspace
 		end
 		
-		-- Spawn behind an existing Piggy bot, or default to player if none found
 		local spawnPos = nil
 		for _, existingBot in ipairs(piggyFolder:GetChildren()) do
 			if existingBot:IsA("Model") and existingBot:FindFirstChild("HumanoidRootPart") then
-				spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
+				spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 7)
 				break
 			end
 		end
 		
 		if not spawnPos then
 			spawnPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-						 and LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+						 and LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -7)
 						 or CFrame.new(0, 5, 0)
 		end
 		
@@ -2336,7 +2404,6 @@ end, function(val)
 		
 		clone.Parent = piggyFolder
 		
-		-- Local AI Simulation to make spawned bots chase if server script fails
 		task.spawn(function()
 			local botHum = clone:FindFirstChildOfClass("Humanoid")
 			local botHrp = clone:FindFirstChild("HumanoidRootPart")
@@ -2358,7 +2425,7 @@ end, function(val)
 			end
 		end)
 		
-		StarterGui:SetCore("SendNotification", { Title = "Spawned", Text = val .. " spawned successfully!", Duration = 3 })
+		BMF_Notify("Spawned", val .. " spawned successfully!", 3)
 	else
 		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage.")
 	end
@@ -2399,7 +2466,6 @@ RunService.Heartbeat:Connect(function()
 				botHRP.CFrame = myHRP.CFrame
 				botHRP.Velocity = myHRP.AssemblyLinearVelocity
 				
-				-- Hide local player visually
 				for _, part in ipairs(myChar:GetDescendants()) do
 					if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
 						part.LocalTransparencyModifier = 1
@@ -2408,7 +2474,6 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 	else
-		-- Restore transparency if stopped controlling
 		local myChar = LocalPlayer.Character
 		if myChar then
 			for _, part in ipairs(myChar:GetDescendants()) do
