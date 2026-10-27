@@ -250,81 +250,13 @@ UIS.InputBegan:Connect(function(input, gp)
 	end
 end)
 
-local function safeNotify(title, text, duration)
-	-- SetCore("SendNotification") crashes CoreGui.Locales.en-us ("attempt to call a nil value").
-	-- Draw the same notice on our own ScreenGui so those features still announce themselves.
-	task.spawn(function()
-		local ok = pcall(function()
-			local holder = ScreenGui:FindFirstChild("BMF_Notices")
-			if not holder then
-				holder = Instance.new("Frame")
-				holder.Name = "BMF_Notices"
-				holder.BackgroundTransparency = 1
-				holder.AnchorPoint = Vector2.new(1, 0)
-				holder.Position = UDim2.new(1, -16, 0, 16)
-				holder.Size = UDim2.new(0, 320, 1, -32)
-				holder.ZIndex = 50
-				holder.Parent = ScreenGui
-				local layout = Instance.new("UIListLayout")
-				layout.Padding = UDim.new(0, 6)
-				layout.SortOrder = Enum.SortOrder.LayoutOrder
-				layout.VerticalAlignment = Enum.VerticalAlignment.Top
-				layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-				layout.Parent = holder
-			end
-			local card = Instance.new("Frame")
-			card.Size = UDim2.new(1, 0, 0, 68)
-			card.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-			card.BackgroundTransparency = 0.1
-			card.BorderSizePixel = 0
-			card.ZIndex = 51
-			card.Parent = holder
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0, 6)
-			corner.Parent = card
-			local accent = Instance.new("Frame")
-			accent.Size = UDim2.new(0, 4, 1, 0)
-			accent.BackgroundColor3 = PINK
-			accent.BorderSizePixel = 0
-			accent.ZIndex = 52
-			accent.Parent = card
-			local titleLabel = Instance.new("TextLabel")
-			titleLabel.BackgroundTransparency = 1
-			titleLabel.Position = UDim2.new(0, 14, 0, 6)
-			titleLabel.Size = UDim2.new(1, -22, 0, 22)
-			titleLabel.Font = UI_FONT
-			titleLabel.TextSize = 16
-			titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-			titleLabel.TextColor3 = WHITE
-			titleLabel.Text = tostring(title or "")
-			titleLabel.ZIndex = 52
-			titleLabel.Parent = card
-			local body = Instance.new("TextLabel")
-			body.BackgroundTransparency = 1
-			body.Position = UDim2.new(0, 14, 0, 28)
-			body.Size = UDim2.new(1, -22, 0, 34)
-			body.Font = BODY_FONT
-			body.TextSize = 14
-			body.TextWrapped = true
-			body.TextXAlignment = Enum.TextXAlignment.Left
-			body.TextYAlignment = Enum.TextYAlignment.Top
-			body.TextColor3 = Color3.fromRGB(230, 230, 230)
-			body.Text = tostring(text or "")
-			body.ZIndex = 52
-			body.Parent = card
-			task.delay(tonumber(duration) or 5, function()
-				pcall(function()
-					card:Destroy()
-				end)
-			end)
-		end)
-		if not ok then
-			return
-		end
-	end)
-end
-
-safeNotify("BMF Menu Loaded!", "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.", 8)
+pcall(function()
+	StarterGui:SetCore("SendNotification", {
+		Title = "BMF Menu Loaded!",
+		Text = "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.",
+		Duration = 8,
+	})
+end)
 
 --------------------------------------------------
 -- SCROLLING TAB HELPERS
@@ -747,273 +679,274 @@ end
 --------------------------------------------------
 -- HOME TAB
 --------------------------------------------------
+do
+	local StatusFrame = Instance.new("Frame")
+	StatusFrame.Parent = HomeScroll
+	StatusFrame.Size = UDim2.new(1, -10, 0, 164)
+	StatusFrame.BackgroundColor3 = PINK_STATUS
+	StatusFrame.BorderSizePixel = 0
+	StatusFrame.LayoutOrder = 1
 
-local StatusFrame = Instance.new("Frame")
-StatusFrame.Parent = HomeScroll
-StatusFrame.Size = UDim2.new(1, -10, 0, 164)
-StatusFrame.BackgroundColor3 = PINK_STATUS
-StatusFrame.BorderSizePixel = 0
-StatusFrame.LayoutOrder = 1
+	local StatusCorner = Instance.new("UICorner")
+	StatusCorner.CornerRadius = UDim.new(0, 6)
+	StatusCorner.Parent = StatusFrame
 
-local StatusCorner = Instance.new("UICorner")
-StatusCorner.CornerRadius = UDim.new(0, 6)
-StatusCorner.Parent = StatusFrame
+	local StatusLayout = Instance.new("UIListLayout")
+	StatusLayout.Parent = StatusFrame
+	StatusLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	StatusLayout.Padding = UDim.new(0, 2)
 
-local StatusLayout = Instance.new("UIListLayout")
-StatusLayout.Parent = StatusFrame
-StatusLayout.SortOrder = Enum.SortOrder.LayoutOrder
-StatusLayout.Padding = UDim.new(0, 2)
+	ErrorLog = Instance.new("TextLabel")
+	ErrorLog.Parent = StatusFrame
+	ErrorLog.Size = UDim2.new(1, -10, 0, 26)
+	ErrorLog.BackgroundTransparency = 1
+	ErrorLog.Text = "Error Log: None"
+	ErrorLog.TextColor3 = Color3.fromRGB(255, 85, 85)
+	ErrorLog.Font = BODY_FONT
+	ErrorLog.TextSize = 14
+	ErrorLog.TextXAlignment = Enum.TextXAlignment.Left
+	ErrorLog.LayoutOrder = 1
 
-ErrorLog = Instance.new("TextLabel")
-ErrorLog.Parent = StatusFrame
-ErrorLog.Size = UDim2.new(1, -10, 0, 26)
-ErrorLog.BackgroundTransparency = 1
-ErrorLog.Text = "Error Log: None"
-ErrorLog.TextColor3 = Color3.fromRGB(255, 85, 85)
-ErrorLog.Font = BODY_FONT
-ErrorLog.TextSize = 14
-ErrorLog.TextXAlignment = Enum.TextXAlignment.Left
-ErrorLog.LayoutOrder = 1
+	local TraitorLabel = Instance.new("TextLabel")
+	TraitorLabel.Parent = StatusFrame
+	TraitorLabel.Size = UDim2.new(1, -10, 0, 26)
+	TraitorLabel.BackgroundTransparency = 1
+	TraitorLabel.Text = "Traitor: Searching..."
+	TraitorLabel.TextColor3 = YELLOW
+	TraitorLabel.Font = UI_FONT
+	TraitorLabel.TextSize = 14
+	TraitorLabel.TextXAlignment = Enum.TextXAlignment.Left
+	TraitorLabel.LayoutOrder = 2
 
-local TraitorLabel = Instance.new("TextLabel")
-TraitorLabel.Parent = StatusFrame
-TraitorLabel.Size = UDim2.new(1, -10, 0, 26)
-TraitorLabel.BackgroundTransparency = 1
-TraitorLabel.Text = "Traitor: Searching..."
-TraitorLabel.TextColor3 = YELLOW
-TraitorLabel.Font = UI_FONT
-TraitorLabel.TextSize = 14
-TraitorLabel.TextXAlignment = Enum.TextXAlignment.Left
-TraitorLabel.LayoutOrder = 2
+	local PiggyLabel = Instance.new("TextLabel")
+	PiggyLabel.Parent = StatusFrame
+	PiggyLabel.Size = UDim2.new(1, -10, 0, 26)
+	PiggyLabel.BackgroundTransparency = 1
+	PiggyLabel.Text = "Piggy: Bot"
+	PiggyLabel.TextColor3 = RED
+	PiggyLabel.Font = UI_FONT
+	PiggyLabel.TextSize = 14
+	PiggyLabel.TextXAlignment = Enum.TextXAlignment.Left
+	PiggyLabel.LayoutOrder = 3
 
-local PiggyLabel = Instance.new("TextLabel")
-PiggyLabel.Parent = StatusFrame
-PiggyLabel.Size = UDim2.new(1, -10, 0, 26)
-PiggyLabel.BackgroundTransparency = 1
-PiggyLabel.Text = "Piggy: Bot"
-PiggyLabel.TextColor3 = RED
-PiggyLabel.Font = UI_FONT
-PiggyLabel.TextSize = 14
-PiggyLabel.TextXAlignment = Enum.TextXAlignment.Left
-PiggyLabel.LayoutOrder = 3
+	local PlayersCountLabel = Instance.new("TextLabel")
+	PlayersCountLabel.Parent = StatusFrame
+	PlayersCountLabel.Size = UDim2.new(1, -10, 0, 26)
+	PlayersCountLabel.BackgroundTransparency = 1
+	PlayersCountLabel.Text = "Players: " .. tostring(#Players:GetPlayers())
+	PlayersCountLabel.TextColor3 = GREEN
+	PlayersCountLabel.Font = UI_FONT
+	PlayersCountLabel.TextSize = 14
+	PlayersCountLabel.TextXAlignment = Enum.TextXAlignment.Left
+	PlayersCountLabel.LayoutOrder = 4
 
-local PlayersCountLabel = Instance.new("TextLabel")
-PlayersCountLabel.Parent = StatusFrame
-PlayersCountLabel.Size = UDim2.new(1, -10, 0, 26)
-PlayersCountLabel.BackgroundTransparency = 1
-PlayersCountLabel.Text = "Players: " .. tostring(#Players:GetPlayers())
-PlayersCountLabel.TextColor3 = GREEN
-PlayersCountLabel.Font = UI_FONT
-PlayersCountLabel.TextSize = 14
-PlayersCountLabel.TextXAlignment = Enum.TextXAlignment.Left
-PlayersCountLabel.LayoutOrder = 4
+	local MapLabel = Instance.new("TextLabel")
+	MapLabel.Parent = StatusFrame
+	MapLabel.Size = UDim2.new(1, -10, 0, 26)
+	MapLabel.BackgroundTransparency = 1
+	MapLabel.Text = "Map: None"
+	MapLabel.TextColor3 = BLUE
+	MapLabel.Font = UI_FONT
+	MapLabel.TextSize = 14
+	MapLabel.TextXAlignment = Enum.TextXAlignment.Left
+	MapLabel.LayoutOrder = 5
 
-local MapLabel = Instance.new("TextLabel")
-MapLabel.Parent = StatusFrame
-MapLabel.Size = UDim2.new(1, -10, 0, 26)
-MapLabel.BackgroundTransparency = 1
-MapLabel.Text = "Map: None"
-MapLabel.TextColor3 = BLUE
-MapLabel.Font = UI_FONT
-MapLabel.TextSize = 14
-MapLabel.TextXAlignment = Enum.TextXAlignment.Left
-MapLabel.LayoutOrder = 5
+	local GamemodeLabel = Instance.new("TextLabel")
+	GamemodeLabel.Parent = StatusFrame
+	GamemodeLabel.Size = UDim2.new(1, -10, 0, 26)
+	GamemodeLabel.BackgroundTransparency = 1
+	GamemodeLabel.Text = "Gamemode: None"
+	GamemodeLabel.TextColor3 = YELLOW
+	GamemodeLabel.Font = UI_FONT
+	GamemodeLabel.TextSize = 14
+	GamemodeLabel.TextXAlignment = Enum.TextXAlignment.Left
+	GamemodeLabel.LayoutOrder = 6
 
-local GamemodeLabel = Instance.new("TextLabel")
-GamemodeLabel.Parent = StatusFrame
-GamemodeLabel.Size = UDim2.new(1, -10, 0, 26)
-GamemodeLabel.BackgroundTransparency = 1
-GamemodeLabel.Text = "Gamemode: None"
-GamemodeLabel.TextColor3 = YELLOW
-GamemodeLabel.Font = UI_FONT
-GamemodeLabel.TextSize = 14
-GamemodeLabel.TextXAlignment = Enum.TextXAlignment.Left
-GamemodeLabel.LayoutOrder = 6
+	local StatusPad = Instance.new("UIPadding")
+	StatusPad.Parent = StatusFrame
+	StatusPad.PaddingLeft = UDim.new(0, 8)
+	StatusPad.PaddingRight = UDim.new(0, 8)
+	StatusPad.PaddingTop = UDim.new(0, 4)
 
-local StatusPad = Instance.new("UIPadding")
-StatusPad.Parent = StatusFrame
-StatusPad.PaddingLeft = UDim.new(0, 8)
-StatusPad.PaddingRight = UDim.new(0, 8)
-StatusPad.PaddingTop = UDim.new(0, 4)
+	local ProfileFrame = Instance.new("Frame")
+	ProfileFrame.Parent = HomeScroll
+	ProfileFrame.Size = UDim2.new(1, -10, 0, 250)
+	ProfileFrame.BackgroundColor3 = PINK_STATUS
+	ProfileFrame.BorderSizePixel = 0
+	ProfileFrame.LayoutOrder = 2
+	ProfileFrame.AutomaticSize = Enum.AutomaticSize.Y
 
-local ProfileFrame = Instance.new("Frame")
-ProfileFrame.Parent = HomeScroll
-ProfileFrame.Size = UDim2.new(1, -10, 0, 250)
-ProfileFrame.BackgroundColor3 = PINK_STATUS
-ProfileFrame.BorderSizePixel = 0
-ProfileFrame.LayoutOrder = 2
-ProfileFrame.AutomaticSize = Enum.AutomaticSize.Y
+	local ProfileCorner = Instance.new("UICorner")
+	ProfileCorner.CornerRadius = UDim.new(0, 6)
+	ProfileCorner.Parent = ProfileFrame
 
-local ProfileCorner = Instance.new("UICorner")
-ProfileCorner.CornerRadius = UDim.new(0, 6)
-ProfileCorner.Parent = ProfileFrame
+	local Avatar = Instance.new("ImageLabel")
+	Avatar.Parent = ProfileFrame
+	Avatar.Name = "Avatar"
+	Avatar.Size = UDim2.new(0, 84, 0, 84)
+	Avatar.Position = UDim2.new(0, 12, 0, 12)
+	Avatar.BackgroundColor3 = Color3.fromRGB(255, 200, 220)
+	Avatar.BorderSizePixel = 0
+	Avatar.ScaleType = Enum.ScaleType.Crop
 
-local Avatar = Instance.new("ImageLabel")
-Avatar.Parent = ProfileFrame
-Avatar.Name = "Avatar"
-Avatar.Size = UDim2.new(0, 84, 0, 84)
-Avatar.Position = UDim2.new(0, 12, 0, 12)
-Avatar.BackgroundColor3 = Color3.fromRGB(255, 200, 220)
-Avatar.BorderSizePixel = 0
-Avatar.ScaleType = Enum.ScaleType.Crop
+	local AvatarCorner = Instance.new("UICorner")
+	AvatarCorner.CornerRadius = UDim.new(1, 0)
+	AvatarCorner.Parent = Avatar
 
-local AvatarCorner = Instance.new("UICorner")
-AvatarCorner.CornerRadius = UDim.new(1, 0)
-AvatarCorner.Parent = Avatar
+	local AvatarStroke = Instance.new("UIStroke")
+	AvatarStroke.Parent = Avatar
+	AvatarStroke.Color = WHITE
+	AvatarStroke.Thickness = 3
 
-local AvatarStroke = Instance.new("UIStroke")
-AvatarStroke.Parent = Avatar
-AvatarStroke.Color = WHITE
-AvatarStroke.Thickness = 3
-
-task.spawn(function()
-	local ok, content, isReady = pcall(function()
-		return Players:GetUserThumbnailAsync(
-			LocalPlayer.UserId,
-			Enum.ThumbnailType.HeadShot,
-			Enum.ThumbnailSize.Size150x150
-		)
-	end)
-	if ok and content then
-		Avatar.Image = content
-		if isReady == false then
-			task.wait(1)
-			pcall(function()
-				local c = Players:GetUserThumbnailAsync(
-					LocalPlayer.UserId,
-					Enum.ThumbnailType.HeadShot,
-					Enum.ThumbnailSize.Size150x150
-				)
-				Avatar.Image = c
-			end)
-		end
-	end
-end)
-
-local Welcome = Instance.new("TextLabel")
-Welcome.Parent = ProfileFrame
-Welcome.Size = UDim2.new(1, -116, 0, 28)
-Welcome.Position = UDim2.new(0, 108, 0, 12)
-Welcome.BackgroundTransparency = 1
-Welcome.Text = "Welcome, " .. LocalPlayer.Name .. "!"
-Welcome.TextColor3 = WHITE
-Welcome.Font = UI_FONT
-Welcome.TextSize = 20
-Welcome.TextXAlignment = Enum.TextXAlignment.Left
-Welcome.TextTruncate = Enum.TextTruncate.AtEnd
-
-local BodyCopy = Instance.new("TextLabel")
-BodyCopy.Parent = ProfileFrame
-BodyCopy.Size = UDim2.new(1, -120, 0, 0)
-BodyCopy.Position = UDim2.new(0, 108, 0, 44)
-BodyCopy.BackgroundTransparency = 1
-BodyCopy.TextColor3 = Color3.fromRGB(255, 220, 235)
-BodyCopy.Font = BODY_FONT
-BodyCopy.TextSize = 15
-BodyCopy.TextXAlignment = Enum.TextXAlignment.Left
-BodyCopy.TextYAlignment = Enum.TextYAlignment.Top
-BodyCopy.TextWrapped = true
-BodyCopy.AutomaticSize = Enum.AutomaticSize.Y
-BodyCopy.Text =
-	"Hello, thank you for using BMF Menu! This script was developed and is actively maintained by BMF. The script supports the following features:\n\n• Player Features\n• ESP\n• Exploits\n• Teleports\n• Misc\n• Scripts\n• Free and keyless!"
-
-task.defer(function()
-	local function fit()
-		local bottom = math.max(108, BodyCopy.AbsolutePosition.Y - ProfileFrame.AbsolutePosition.Y + BodyCopy.AbsoluteSize.Y + 16)
-		ProfileFrame.Size = UDim2.new(1, -10, 0, math.max(250, bottom))
-	end
-	fit()
-	BodyCopy:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
-end)
-
-task.spawn(function()
-	while StatusFrame.Parent do
-		local foundTraitor = nil
-		for _, player in ipairs(Players:GetPlayers()) do
-			if isTraitorPlayer(player, player.Character) then
-				foundTraitor = player.Name
-				break
+	task.spawn(function()
+		local ok, content, isReady = pcall(function()
+			return Players:GetUserThumbnailAsync(
+				LocalPlayer.UserId,
+				Enum.ThumbnailType.HeadShot,
+				Enum.ThumbnailSize.Size150x150
+			)
+		end)
+		if ok and content then
+			Avatar.Image = content
+			if isReady == false then
+				task.wait(1)
+				pcall(function()
+					local c = Players:GetUserThumbnailAsync(
+						LocalPlayer.UserId,
+						Enum.ThumbnailType.HeadShot,
+						Enum.ThumbnailSize.Size150x150
+					)
+					Avatar.Image = c
+				end)
 			end
-			local model = workspace:FindFirstChild(player.Name)
-			if model then
-				local traitor = model:FindFirstChild("Traitor")
-				if traitor and traitor:IsA("BoolValue") and traitor.Value == true then
+		end
+	end)
+
+	local Welcome = Instance.new("TextLabel")
+	Welcome.Parent = ProfileFrame
+	Welcome.Size = UDim2.new(1, -116, 0, 28)
+	Welcome.Position = UDim2.new(0, 108, 0, 12)
+	Welcome.BackgroundTransparency = 1
+	Welcome.Text = "Welcome, " .. LocalPlayer.Name .. "!"
+	Welcome.TextColor3 = WHITE
+	Welcome.Font = UI_FONT
+	Welcome.TextSize = 20
+	Welcome.TextXAlignment = Enum.TextXAlignment.Left
+	Welcome.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local BodyCopy = Instance.new("TextLabel")
+	BodyCopy.Parent = ProfileFrame
+	BodyCopy.Size = UDim2.new(1, -120, 0, 0)
+	BodyCopy.Position = UDim2.new(0, 108, 0, 44)
+	BodyCopy.BackgroundTransparency = 1
+	BodyCopy.TextColor3 = Color3.fromRGB(255, 220, 235)
+	BodyCopy.Font = BODY_FONT
+	BodyCopy.TextSize = 15
+	BodyCopy.TextXAlignment = Enum.TextXAlignment.Left
+	BodyCopy.TextYAlignment = Enum.TextYAlignment.Top
+	BodyCopy.TextWrapped = true
+	BodyCopy.AutomaticSize = Enum.AutomaticSize.Y
+	BodyCopy.Text =
+		"Hello, thank you for using BMF Menu! This script was developed and is actively maintained by BMF. The script supports the following features:\n\n• Player Features\n• ESP\n• Exploits\n• Teleports\n• Misc\n• Scripts\n• Free and keyless!"
+
+	task.defer(function()
+		local function fit()
+			local bottom = math.max(108, BodyCopy.AbsolutePosition.Y - ProfileFrame.AbsolutePosition.Y + BodyCopy.AbsoluteSize.Y + 16)
+			ProfileFrame.Size = UDim2.new(1, -10, 0, math.max(250, bottom))
+		end
+		fit()
+		BodyCopy:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	end)
+
+	task.spawn(function()
+		while StatusFrame.Parent do
+			local foundTraitor = nil
+			for _, player in ipairs(Players:GetPlayers()) do
+				if isTraitorPlayer(player, player.Character) then
 					foundTraitor = player.Name
 					break
 				end
-			end
-		end
-		if foundTraitor then
-			TraitorLabel.Text = "Traitor: " .. foundTraitor
-		else
-			TraitorLabel.Text = "Traitor: It is not in traitor mode, or traitor not found."
-		end
-
-		local piggyName = getPiggyPlayerName()
-		PiggyLabel.Text = piggyName and ("Piggy: " .. piggyName) or "Piggy: Bot"
-		PlayersCountLabel.Text = "Players: " .. tostring(#Players:GetPlayers())
-		
-		-- Map Check
-		local currentMap = getCurrentMapName() or "None"
-		MapLabel.Text = "Map: " .. currentMap
-		
-		-- Gamemode Check
-		local gmName = "None"
-		local gmColor = YELLOW
-		
-		local gameFolder = workspace:FindFirstChild("GameFolder")
-		local piggyNPCFolder = workspace:FindFirstChild("PiggyNPC")
-		
-		local botCount = 0
-		if piggyNPCFolder then
-			for _, bot in ipairs(piggyNPCFolder:GetChildren()) do
-				if bot:IsA("Model") and not string.lower(bot.Name):find("trap") then
-					botCount = botCount + 1
+				local model = workspace:FindFirstChild(player.Name)
+				if model then
+					local traitor = model:FindFirstChild("Traitor")
+					if traitor and traitor:IsA("BoolValue") and traitor.Value == true then
+						foundTraitor = player.Name
+						break
+					end
 				end
 			end
-		end
-		
-		local hasPlayerPiggy = (piggyName ~= nil)
+			if foundTraitor then
+				TraitorLabel.Text = "Traitor: " .. foundTraitor
+			else
+				TraitorLabel.Text = "Traitor: It is not in traitor mode, or traitor not found."
+			end
 
-		if gameFolder and gameFolder:FindFirstChild("InfectionEnabled") and gameFolder.InfectionEnabled.Value == true then
-			gmName = "Infection"
-			gmColor = GREEN
-		elseif gameFolder and gameFolder:FindFirstChild("TraitorEnabled") and gameFolder.TraitorEnabled.Value == true then
-			gmName = "Traitor"
-			gmColor = DARK_RED
-		elseif gameFolder and gameFolder:FindFirstChild("TagEnabled") and gameFolder.TagEnabled.Value == true then
-			gmName = "Tag"
-			gmColor = DARK_GRAY
-		else
-			if botCount >= 2 then
-				if currentMap == "Mall" and piggyNPCFolder and piggyNPCFolder:FindFirstChild("Proto") and botCount < 3 then
-					-- Ignore swarm until 3rd model in Mall with Proto
-				else
-					gmName = "Swarm"
-					gmColor = LIGHT_GRAY
+			local piggyName = getPiggyPlayerName()
+			PiggyLabel.Text = piggyName and ("Piggy: " .. piggyName) or "Piggy: Bot"
+			PlayersCountLabel.Text = "Players: " .. tostring(#Players:GetPlayers())
+			
+			-- Map Check
+			local currentMap = getCurrentMapName() or "None"
+			MapLabel.Text = "Map: " .. currentMap
+			
+			-- Gamemode Check
+			local gmName = "None"
+			local gmColor = YELLOW
+			
+			local gameFolder = workspace:FindFirstChild("GameFolder")
+			local piggyNPCFolder = workspace:FindFirstChild("PiggyNPC")
+			
+			local botCount = 0
+			if piggyNPCFolder then
+				for _, bot in ipairs(piggyNPCFolder:GetChildren()) do
+					if bot:IsA("Model") and not string.lower(bot.Name):find("trap") then
+						botCount = botCount + 1
+					end
 				end
 			end
 			
-			if gmName == "None" then
-				if botCount > 0 and hasPlayerPiggy then
-					gmName = "Player + Bot"
-					gmColor = LIGHT_PURPLE_GM
-				elseif botCount == 1 and not hasPlayerPiggy then
-					gmName = "Bot"
-					gmColor = DARK_BLUE_GM
-				elseif botCount == 0 and hasPlayerPiggy then
-					gmName = "Player"
-					gmColor = DARK_PINK
+			local hasPlayerPiggy = (piggyName ~= nil)
+
+			if gameFolder and gameFolder:FindFirstChild("InfectionEnabled") and gameFolder.InfectionEnabled.Value == true then
+				gmName = "Infection"
+				gmColor = GREEN
+			elseif gameFolder and gameFolder:FindFirstChild("TraitorEnabled") and gameFolder.TraitorEnabled.Value == true then
+				gmName = "Traitor"
+				gmColor = DARK_RED
+			elseif gameFolder and gameFolder:FindFirstChild("TagEnabled") and gameFolder.TagEnabled.Value == true then
+				gmName = "Tag"
+				gmColor = DARK_GRAY
+			else
+				if botCount >= 2 then
+					if currentMap == "Mall" and piggyNPCFolder and piggyNPCFolder:FindFirstChild("Proto") and botCount < 3 then
+						-- Ignore swarm until 3rd model in Mall with Proto
+					else
+						gmName = "Swarm"
+						gmColor = LIGHT_GRAY
+					end
+				end
+				
+				if gmName == "None" then
+					if botCount > 0 and hasPlayerPiggy then
+						gmName = "Player + Bot"
+						gmColor = LIGHT_PURPLE_GM
+					elseif botCount == 1 and not hasPlayerPiggy then
+						gmName = "Bot"
+						gmColor = DARK_BLUE_GM
+					elseif botCount == 0 and hasPlayerPiggy then
+						gmName = "Player"
+						gmColor = DARK_PINK
+					end
 				end
 			end
+
+			GamemodeLabel.Text = "Gamemode: " .. gmName
+			GamemodeLabel.TextColor3 = gmColor
+
+			task.wait(0.5)
 		end
-
-		GamemodeLabel.Text = "Gamemode: " .. gmName
-		GamemodeLabel.TextColor3 = gmColor
-
-		task.wait(0.5)
-	end
-end)
+	end)
+end
 
 --------------------------------------------------
 -- LOCAL PLAYER TAB
@@ -1236,34 +1169,36 @@ local function startFly(withNoclip)
 	end)
 end
 
-local speedBtn = createButton(LocalPlayerScroll, "Speed: OFF", function(button)
-	speedEnabled = not speedEnabled
-	setToggleVisual(button, speedEnabled, "Speed: ON", "Speed: OFF")
-	if not speedEnabled then
-		local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-		if hum then
-			hum.WalkSpeed = 16
+do
+	local speedBtn = createButton(LocalPlayerScroll, "Speed: OFF", function(button)
+		speedEnabled = not speedEnabled
+		setToggleVisual(button, speedEnabled, "Speed: ON", "Speed: OFF")
+		if not speedEnabled then
+			local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum.WalkSpeed = 16
+			end
 		end
-	end
-end)
-speedBtn.TextColor3 = RED
+	end)
+	speedBtn.TextColor3 = RED
 
-local fullbrightBtn = createButton(LocalPlayerScroll, "Fullbright: OFF", function(button)
-	fullbrightEnabled = not fullbrightEnabled
-	setToggleVisual(button, fullbrightEnabled, "Fullbright: ON", "Fullbright: OFF")
-	if fullbrightEnabled then
-		applyFullbright()
-	else
-		restoreLighting()
-	end
-end)
-fullbrightBtn.TextColor3 = RED
+	local fullbrightBtn = createButton(LocalPlayerScroll, "Fullbright: OFF", function(button)
+		fullbrightEnabled = not fullbrightEnabled
+		setToggleVisual(button, fullbrightEnabled, "Fullbright: ON", "Fullbright: OFF")
+		if fullbrightEnabled then
+			applyFullbright()
+		else
+			restoreLighting()
+		end
+	end)
+	fullbrightBtn.TextColor3 = RED
 
-local infJumpBtn = createButton(LocalPlayerScroll, "Infinite Jump: OFF", function(button)
-	infiniteJumpEnabled = not infiniteJumpEnabled
-	setToggleVisual(button, infiniteJumpEnabled, "Infinite Jump: ON", "Infinite Jump: OFF")
-end)
-infJumpBtn.TextColor3 = RED
+	local infJumpBtn = createButton(LocalPlayerScroll, "Infinite Jump: OFF", function(button)
+		infiniteJumpEnabled = not infiniteJumpEnabled
+		setToggleVisual(button, infiniteJumpEnabled, "Infinite Jump: ON", "Infinite Jump: OFF")
+	end)
+	infJumpBtn.TextColor3 = RED
+end
 
 flyBtn = createButton(LocalPlayerScroll, "Q to Fly: OFF", function(button)
 	flyHotkeyEnabled = not flyHotkeyEnabled
@@ -1683,72 +1618,74 @@ local function wipePlayerESP(char, playerName)
 	clearESPOn(char, "BMF_Highlight", "player_" .. (playerName or char.Name))
 end
 
-local playerESPBtn = createButton(ESPScroll, "Player ESP: OFF", function(button)
-	playerESPEnabled = not playerESPEnabled
-	setToggleVisual(button, playerESPEnabled, "Player ESP: ON", "Player ESP: OFF")
-	if not playerESPEnabled then
-		for _, plr in ipairs(Players:GetPlayers()) do
-			wipePlayerESP(plr.Character, plr.Name)
+do
+	local playerESPBtn = createButton(ESPScroll, "Player ESP: OFF", function(button)
+		playerESPEnabled = not playerESPEnabled
+		setToggleVisual(button, playerESPEnabled, "Player ESP: ON", "Player ESP: OFF")
+		if not playerESPEnabled then
+			for _, plr in ipairs(Players:GetPlayers()) do
+				wipePlayerESP(plr.Character, plr.Name)
+			end
 		end
-	end
-end)
-playerESPBtn.TextColor3 = RED
+	end)
+	playerESPBtn.TextColor3 = RED
 
-local piggyESPBtn = createButton(ESPScroll, "Piggy ESP: OFF", function(button)
-	piggyESPEnabled = not piggyESPEnabled
-	setToggleVisual(button, piggyESPEnabled, "Piggy ESP: ON", "Piggy ESP: OFF")
-	if not piggyESPEnabled then
-		for piggy in pairs(trackedPiggies) do
-			clearESPOn(piggy, "BMF_Highlight", "piggy_" .. tostring(piggy))
+	local piggyESPBtn = createButton(ESPScroll, "Piggy ESP: OFF", function(button)
+		piggyESPEnabled = not piggyESPEnabled
+		setToggleVisual(button, piggyESPEnabled, "Piggy ESP: ON", "Piggy ESP: OFF")
+		if not piggyESPEnabled then
+			for piggy in pairs(trackedPiggies) do
+				clearESPOn(piggy, "BMF_Highlight", "piggy_" .. tostring(piggy))
+			end
+			trackedPiggies = {}
+		else
+			scanPiggies()
 		end
-		trackedPiggies = {}
-	else
-		scanPiggies()
-	end
-end)
-piggyESPBtn.TextColor3 = RED
+	end)
+	piggyESPBtn.TextColor3 = RED
 
-local enemyESPBtn = createButton(ESPScroll, "Enemy ESP: OFF", function(button)
-	enemyESPEnabled = not enemyESPEnabled
-	setToggleVisual(button, enemyESPEnabled, "Enemy ESP: ON", "Enemy ESP: OFF")
-	if not enemyESPEnabled then
-		for model in pairs(trackedEnemies) do
-			clearESPOn(model, "BMF_Highlight", "enemy_" .. tostring(model))
+	local enemyESPBtn = createButton(ESPScroll, "Enemy ESP: OFF", function(button)
+		enemyESPEnabled = not enemyESPEnabled
+		setToggleVisual(button, enemyESPEnabled, "Enemy ESP: ON", "Enemy ESP: OFF")
+		if not enemyESPEnabled then
+			for model in pairs(trackedEnemies) do
+				clearESPOn(model, "BMF_Highlight", "enemy_" .. tostring(model))
+			end
+			trackedEnemies = {}
+		else
+			scanEnemies()
 		end
-		trackedEnemies = {}
-	else
-		scanEnemies()
-	end
-end)
-enemyESPBtn.TextColor3 = RED
+	end)
+	enemyESPBtn.TextColor3 = RED
 
-local allyESPBtn = createButton(ESPScroll, "Ally ESP: OFF", function(button)
-	allyESPEnabled = not allyESPEnabled
-	setToggleVisual(button, allyESPEnabled, "Ally ESP: ON", "Ally ESP: OFF")
-	if not allyESPEnabled then
-		for model in pairs(trackedAllies) do
-			clearESPOn(model, "BMF_Highlight", "ally_" .. tostring(model))
+	local allyESPBtn = createButton(ESPScroll, "Ally ESP: OFF", function(button)
+		allyESPEnabled = not allyESPEnabled
+		setToggleVisual(button, allyESPEnabled, "Ally ESP: ON", "Ally ESP: OFF")
+		if not allyESPEnabled then
+			for model in pairs(trackedAllies) do
+				clearESPOn(model, "BMF_Highlight", "ally_" .. tostring(model))
+			end
+			trackedAllies = {}
+		else
+			scanAlliesESP()
 		end
-		trackedAllies = {}
-	else
-		scanAlliesESP()
-	end
-end)
-allyESPBtn.TextColor3 = RED
+	end)
+	allyESPBtn.TextColor3 = RED
 
-local itemESPBtn = createButton(ESPScroll, "Item ESP: OFF", function(button)
-	itemESPEnabled = not itemESPEnabled
-	setToggleVisual(button, itemESPEnabled, "Item ESP: ON", "Item ESP: OFF")
-	if not itemESPEnabled then
-		for item in pairs(trackedItems) do
-			clearESPOn(item, "BMF_Highlight", "item_" .. tostring(item))
+	local itemESPBtn = createButton(ESPScroll, "Item ESP: OFF", function(button)
+		itemESPEnabled = not itemESPEnabled
+		setToggleVisual(button, itemESPEnabled, "Item ESP: ON", "Item ESP: OFF")
+		if not itemESPEnabled then
+			for item in pairs(trackedItems) do
+				clearESPOn(item, "BMF_Highlight", "item_" .. tostring(item))
+			end
+			trackedItems = {}
+		else
+			scanItems()
 		end
-		trackedItems = {}
-	else
-		scanItems()
-	end
-end)
-itemESPBtn.TextColor3 = RED
+	end)
+	itemESPBtn.TextColor3 = RED
+end
 
 task.spawn(function()
 	while true do
@@ -2155,24 +2092,56 @@ local function scanAllies()
 	end
 end
 
-local godBtn = createButton(ExploitsScroll, "God Mode: OFF", function(button)
-	godModeEnabled = not godModeEnabled
-	setToggleVisual(button, godModeEnabled, "God Mode: ON", "God Mode: OFF")
-	if godModeEnabled then
-		scanGodMode()
-		applyGodModeSelf()
-	end
-end)
-godBtn.TextColor3 = RED
+do
+	local godBtn = createButton(ExploitsScroll, "God Mode: OFF", function(button)
+		godModeEnabled = not godModeEnabled
+		setToggleVisual(button, godModeEnabled, "God Mode: ON", "God Mode: OFF")
+		if godModeEnabled then
+			scanGodMode()
+			applyGodModeSelf()
+		end
+	end)
+	godBtn.TextColor3 = RED
 
-local alliesBtn = createButton(ExploitsScroll, "Allies Don't Deal Damage: OFF", function(button)
-	alliesNoDamageEnabled = not alliesNoDamageEnabled
-	setToggleVisual(button, alliesNoDamageEnabled, "Allies Don't Deal Damage: ON", "Allies Don't Deal Damage: OFF")
-	if alliesNoDamageEnabled then
-		scanAllies()
-	end
-end)
-alliesBtn.TextColor3 = RED
+	local alliesBtn = createButton(ExploitsScroll, "Allies Don't Deal Damage: OFF", function(button)
+		alliesNoDamageEnabled = not alliesNoDamageEnabled
+		setToggleVisual(button, alliesNoDamageEnabled, "Allies Don't Deal Damage: ON", "Allies Don't Deal Damage: OFF")
+		if alliesNoDamageEnabled then
+			scanAllies()
+		end
+	end)
+	alliesBtn.TextColor3 = RED
+
+	local mrPBtn = createButton(ExploitsScroll, "Mr. P Doesn't Deal Damage: OFF", function(button)
+		mrPNoDamageEnabled = not mrPNoDamageEnabled
+		setToggleVisual(button, mrPNoDamageEnabled, "Mr. P Doesn't Deal Damage: ON", "Mr. P Doesn't Deal Damage: OFF")
+		if not mrPNoDamageEnabled then
+			mrPModel = nil
+			mrPPlantRef = nil
+		end
+	end)
+	mrPBtn.TextColor3 = RED
+
+	local trickBotsBtn = createButton(ExploitsScroll, "Trick Bots (Troll): OFF", function(button)
+		trickBotsEnabled = not trickBotsEnabled
+		setToggleVisual(button, trickBotsEnabled, "Trick Bots (Troll): ON", "Trick Bots (Troll): OFF")
+		if not trickBotsEnabled and not (os.clock() < fakeInvisEndTime) then
+			cframeSpoofPending = true
+		end
+	end)
+	trickBotsBtn.TextColor3 = RED
+
+	local fakeInvisBtn = createButton(ExploitsScroll, "Fake Invisibility Ability", function()
+		fakeInvisEndTime = os.clock() + 10
+		pcall(function()
+			StarterGui:SetCore("SendNotification", {
+				Title = "Fake Invisibility",
+				Text = "Active for 10 seconds. You are temporarily hidden!",
+				Duration = 3,
+			})
+		end)
+	end)
+end
 
 local mrPNoDamageEnabled = false
 local mrPModel = nil
@@ -2231,30 +2200,6 @@ local function findMrPModel(plant)
 	end
 	return nil
 end
-
-local mrPBtn = createButton(ExploitsScroll, "Mr. P Doesn't Deal Damage: OFF", function(button)
-	mrPNoDamageEnabled = not mrPNoDamageEnabled
-	setToggleVisual(button, mrPNoDamageEnabled, "Mr. P Doesn't Deal Damage: ON", "Mr. P Doesn't Deal Damage: OFF")
-	if not mrPNoDamageEnabled then
-		mrPModel = nil
-		mrPPlantRef = nil
-	end
-end)
-mrPBtn.TextColor3 = RED
-
-local trickBotsBtn = createButton(ExploitsScroll, "Trick Bots (Troll): OFF", function(button)
-	trickBotsEnabled = not trickBotsEnabled
-	setToggleVisual(button, trickBotsEnabled, "Trick Bots (Troll): ON", "Trick Bots (Troll): OFF")
-	if not trickBotsEnabled and not (os.clock() < fakeInvisEndTime) then
-		cframeSpoofPending = true
-	end
-end)
-trickBotsBtn.TextColor3 = RED
-
-local fakeInvisBtn = createButton(ExploitsScroll, "Fake Invisibility Ability", function()
-	fakeInvisEndTime = os.clock() + 10
-	safeNotify("Fake Invisibility", "Active for 10 seconds. You are temporarily hidden!", 3)
-end)
 
 local function getSpoofTarget()
 	if os.clock() < fakeInvisEndTime then
@@ -2436,7 +2381,13 @@ end, function(val)
 			end
 		end)
 		
-		safeNotify("Spawned", val .. " spawned successfully!", 3)
+		pcall(function()
+			StarterGui:SetCore("SendNotification", {
+				Title = "Spawned",
+				Text = val .. " spawned successfully!",
+				Duration = 3,
+			})
+		end)
 	else
 		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage.")
 	end
@@ -2634,34 +2585,36 @@ end)
 -- TELEPORTS TAB
 --------------------------------------------------
 
-createButton(TeleportsScroll, "Piggy Room (Safe Spot)", function()
-	local character = LocalPlayer.Character
-	local hrp = character and character:FindFirstChild("HumanoidRootPart")
-	if hrp then
-		hrp.CFrame = CFrame.new(-375, -4, -83)
-	else
-		logError("No HumanoidRootPart to teleport")
-	end
-end)
+do
+	createButton(TeleportsScroll, "Piggy Room (Safe Spot)", function()
+		local character = LocalPlayer.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.CFrame = CFrame.new(-375, -4, -83)
+		else
+			logError("No HumanoidRootPart to teleport")
+		end
+	end)
 
-createButton(TeleportsScroll, "In-Lobby Room", function()
-	local character = LocalPlayer.Character
-	local hrp = character and character:FindFirstChild("HumanoidRootPart")
-	if hrp then
-		hrp.CFrame = CFrame.new(-453, -27, -92)
-	else
-		logError("No HumanoidRootPart to teleport")
-	end
-end)
+	createButton(TeleportsScroll, "In-Lobby Room", function()
+		local character = LocalPlayer.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.CFrame = CFrame.new(-453, -27, -92)
+		else
+			logError("No HumanoidRootPart to teleport")
+		end
+	end)
 
-local tpSoon = Instance.new("TextLabel")
-tpSoon.Parent = TeleportsScroll
-tpSoon.Size = UDim2.new(1, -10, 0, 30)
-tpSoon.BackgroundTransparency = 1
-tpSoon.Text = "More teleports will be added soon."
-tpSoon.TextColor3 = Color3.fromRGB(255, 190, 220)
-tpSoon.Font = BODY_FONT
-tpSoon.TextSize = 16
+	local tpSoon = Instance.new("TextLabel")
+	tpSoon.Parent = TeleportsScroll
+	tpSoon.Size = UDim2.new(1, -10, 0, 30)
+	tpSoon.BackgroundTransparency = 1
+	tpSoon.Text = "More teleports will be added soon."
+	tpSoon.TextColor3 = Color3.fromRGB(255, 190, 220)
+	tpSoon.Font = BODY_FONT
+	tpSoon.TextSize = 16
+end
 
 --------------------------------------------------
 -- MISC TAB
