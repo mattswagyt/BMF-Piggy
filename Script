@@ -68,26 +68,6 @@ local UI_FONT = Enum.Font.SourceSansBold
 local BODY_FONT = Enum.Font.SourceSans
 
 --------------------------------------------------
--- ERROR LOG SCOPE DECLARATION & SAFE NOTIFY
---------------------------------------------------
-local ErrorLog
-
-local function safeNotify(title, text)
-	-- Bypasses the StarterGui:SetCore Locales.en-us crash
-	if ErrorLog then
-		ErrorLog.Text = title .. " - " .. text
-	else
-		warn(title .. " - " .. text)
-	end
-end
-
-local function logError(msg)
-	if ErrorLog then
-		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
-	end
-end
-
---------------------------------------------------
 -- UI SETUP
 --------------------------------------------------
 
@@ -98,16 +78,16 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset = true
 
 pcall(function()
-	if type(syn) == "table" and type(syn.protect_gui) == "function" then
+	if syn and syn.protect_gui then
 		syn.protect_gui(ScreenGui)
-	elseif type(protectgui) == "function" then
+	elseif protectgui then
 		protectgui(ScreenGui)
 	end
 end)
 
 local guiParent = PlayerGui
 pcall(function()
-	if type(gethui) == "function" then
+	if gethui then
 		guiParent = gethui()
 	else
 		guiParent = game:GetService("CoreGui")
@@ -271,7 +251,11 @@ UIS.InputBegan:Connect(function(input, gp)
 end)
 
 pcall(function()
-	safeNotify("BMF Menu Loaded!", "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.")
+	StarterGui:SetCore("SendNotification", {
+		Title = "BMF Menu Loaded!",
+		Text = "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.",
+		Duration = 8,
+	})
 end)
 
 --------------------------------------------------
@@ -431,7 +415,11 @@ end
 -- ERROR LOG (HOME)
 --------------------------------------------------
 
--- Note: The local logError function was moved to the top scope to support early execution.
+local function logError(msg)
+	if ErrorLog then
+		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
+	end
+end
 
 --------------------------------------------------
 -- GAME MAP CHECKER FOR TRACERS
@@ -2197,7 +2185,11 @@ trickBotsBtn.TextColor3 = RED
 
 local fakeInvisBtn = createButton(ExploitsScroll, "Fake Invisibility Ability", function()
 	fakeInvisEndTime = os.clock() + 10
-	safeNotify("Fake Invisibility", "Active for 10 seconds. You are temporarily hidden!")
+	StarterGui:SetCore("SendNotification", {
+		Title = "Fake Invisibility",
+		Text = "Active for 10 seconds. You are temporarily hidden!",
+		Duration = 3,
+	})
 end)
 
 local function getSpoofTarget()
@@ -2238,7 +2230,6 @@ local function applyControl(val)
 			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
 		end
 	else
-		-- Unanchor previous bot if switching directly
 		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
 			controlledModel.HumanoidRootPart.Anchored = false
 		end
@@ -2246,7 +2237,6 @@ local function applyControl(val)
 		controlledModel = val
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") and val:FindFirstChild("HumanoidRootPart") then
-			-- Move player to bot's exact position to start, and anchor bot to stop it from fighting local control
 			myChar.HumanoidRootPart.CFrame = val.HumanoidRootPart.CFrame
 			val.HumanoidRootPart.Anchored = true
 		end
@@ -2305,7 +2295,6 @@ end, function(val)
 	local rs = game:GetService("ReplicatedStorage")
 	local botModel = nil
 	
-	-- Scan descendants directly to guarantee grabbing the Model, not a nested folder or script
 	for _, obj in ipairs(rs:GetDescendants()) do
 		if obj:IsA("Model") and obj.Name == val then
 			botModel = obj
@@ -2316,7 +2305,6 @@ end, function(val)
 	if botModel then
 		local clone = botModel:Clone()
 		
-		-- Strictly unanchor to allow physics/moving from statues
 		for _, part in ipairs(clone:GetDescendants()) do
 			if part:IsA("BasePart") then
 				part.Anchored = false
@@ -2341,11 +2329,10 @@ end, function(val)
 			piggyFolder.Parent = workspace
 		end
 		
-		-- Spawn behind an existing Piggy bot, fallback to player if none found
 		local spawnPos = nil
 		for _, existingBot in ipairs(piggyFolder:GetChildren()) do
 			if existingBot:IsA("Model") and existingBot:FindFirstChild("HumanoidRootPart") then
-				spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 7) -- 7 studs behind
+				spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 7)
 				break
 			end
 		end
@@ -2364,7 +2351,6 @@ end, function(val)
 		
 		clone.Parent = piggyFolder
 		
-		-- Local AI Simulation to make spawned bots chase if server script fails
 		task.spawn(function()
 			local botHum = clone:FindFirstChildOfClass("Humanoid")
 			local botHrp = clone:FindFirstChild("HumanoidRootPart")
@@ -2386,7 +2372,7 @@ end, function(val)
 			end
 		end)
 		
-		safeNotify("Spawned", val .. " spawned successfully!")
+		StarterGui:SetCore("SendNotification", { Title = "Spawned", Text = val .. " spawned successfully!", Duration = 3 })
 	else
 		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage.")
 	end
@@ -2424,11 +2410,9 @@ RunService.Heartbeat:Connect(function()
 			local myHRP = myChar.HumanoidRootPart
 			local botHRP = controlledModel:FindFirstChild("HumanoidRootPart")
 			if botHRP then
-				-- We anchor botHRP upon selection so server logic doesn't fight player movement locally
 				botHRP.CFrame = myHRP.CFrame
 				botHRP.Velocity = myHRP.AssemblyLinearVelocity
 				
-				-- Hide local player visually so it's fully immersive
 				for _, part in ipairs(myChar:GetDescendants()) do
 					if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
 						part.LocalTransparencyModifier = 1
@@ -2437,7 +2421,6 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 	else
-		-- Restore transparency if stopped controlling
 		local myChar = LocalPlayer.Character
 		if myChar then
 			for _, part in ipairs(myChar:GetDescendants()) do
@@ -2686,10 +2669,10 @@ end)
 
 local function httpGet(url)
 	local ok, result = pcall(function()
-		if type(game.HttpGet) == "function" then
+		if game.HttpGet then
 			return game:HttpGet(url)
 		end
-		if type(game.HttpGetAsync) == "function" then
+		if game.HttpGetAsync then
 			return game:HttpGetAsync(url)
 		end
 		return nil
@@ -2706,7 +2689,7 @@ local function runRemote(url, label)
 		logError((label or "Script") .. " download failed (HttpGet returned nil)")
 		return
 	end
-	if type(loadstring) ~= "function" then
+	if not loadstring then
 		logError((label or "Script") .. " failed: loadstring is not available")
 		return
 	end
