@@ -2222,27 +2222,25 @@ end)
 
 local function applyControl(val)
 	if val == "STOP" then
-		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
-			controlledModel.HumanoidRootPart.Anchored = false
-		end
 		controlledModel = nil
 		if workspace.CurrentCamera and LocalPlayer.Character then
 			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
 		end
 	else
-		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
-			controlledModel.HumanoidRootPart.Anchored = false
-		end
-		
 		controlledModel = val
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") and val:FindFirstChild("HumanoidRootPart") then
 			myChar.HumanoidRootPart.CFrame = val.HumanoidRootPart.CFrame
-			val.HumanoidRootPart.Anchored = true
 		end
 		if workspace.CurrentCamera and val:FindFirstChild("Humanoid") then
 			workspace.CurrentCamera.CameraSubject = val.Humanoid
 		end
+		
+		-- Try to stop the bot from fighting control locally
+		pcall(function()
+			local mainScript = val:FindFirstChild("BotMainScript") or val:FindFirstChild("SwarmBotMainScript")
+			if mainScript then mainScript.Disabled = true end
+		end)
 	end
 end
 
@@ -2293,23 +2291,9 @@ createDropdown(ExploitsScroll, "Spawn Bot (Troll, WIP)", function()
 	return opts
 end, function(val)
 	local rs = game:GetService("ReplicatedStorage")
-	local botModel = nil
-	
-	for _, obj in ipairs(rs:GetDescendants()) do
-		if obj:IsA("Model") and obj.Name == val then
-			botModel = obj
-			break
-		end
-	end
-	
-	if botModel then
+	local botModel = rs:FindFirstChild(val, true)
+	if botModel and botModel:IsA("Model") then
 		local clone = botModel:Clone()
-		
-		for _, part in ipairs(clone:GetDescendants()) do
-			if part:IsA("BasePart") then
-				part.Anchored = false
-			end
-		end
 		
 		if not clone:FindFirstChild("BotMainScript") and not clone:FindFirstChild("SwarmBotMainScript") then
 			local scriptToClone = rs:FindFirstChild("BotMainScript", true) or rs:FindFirstChild("SwarmBotMainScript", true)
@@ -2329,17 +2313,18 @@ end, function(val)
 			piggyFolder.Parent = workspace
 		end
 		
+		-- Spawn behind an existing Piggy bot, or default to player if none found
 		local spawnPos = nil
 		for _, existingBot in ipairs(piggyFolder:GetChildren()) do
 			if existingBot:IsA("Model") and existingBot:FindFirstChild("HumanoidRootPart") then
-				spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 7)
+				spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
 				break
 			end
 		end
 		
 		if not spawnPos then
 			spawnPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") 
-						 and LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -7)
+						 and LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
 						 or CFrame.new(0, 5, 0)
 		end
 		
@@ -2351,6 +2336,7 @@ end, function(val)
 		
 		clone.Parent = piggyFolder
 		
+		-- Local AI Simulation to make spawned bots chase if server script fails
 		task.spawn(function()
 			local botHum = clone:FindFirstChildOfClass("Humanoid")
 			local botHrp = clone:FindFirstChild("HumanoidRootPart")
@@ -2413,6 +2399,7 @@ RunService.Heartbeat:Connect(function()
 				botHRP.CFrame = myHRP.CFrame
 				botHRP.Velocity = myHRP.AssemblyLinearVelocity
 				
+				-- Hide local player visually
 				for _, part in ipairs(myChar:GetDescendants()) do
 					if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
 						part.LocalTransparencyModifier = 1
@@ -2421,6 +2408,7 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 	else
+		-- Restore transparency if stopped controlling
 		local myChar = LocalPlayer.Character
 		if myChar then
 			for _, part in ipairs(myChar:GetDescendants()) do
