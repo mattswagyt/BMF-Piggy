@@ -68,9 +68,24 @@ local UI_FONT = Enum.Font.SourceSansBold
 local BODY_FONT = Enum.Font.SourceSans
 
 --------------------------------------------------
--- ERROR LOG SCOPE DECLARATION
+-- ERROR LOG SCOPE DECLARATION & SAFE NOTIFY
 --------------------------------------------------
 local ErrorLog
+
+local function safeNotify(title, text)
+	-- Bypasses the StarterGui:SetCore Locales.en-us crash
+	if ErrorLog then
+		ErrorLog.Text = title .. " - " .. text
+	else
+		warn(title .. " - " .. text)
+	end
+end
+
+local function logError(msg)
+	if ErrorLog then
+		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
+	end
+end
 
 --------------------------------------------------
 -- UI SETUP
@@ -93,10 +108,9 @@ end)
 local guiParent = PlayerGui
 pcall(function()
 	if type(gethui) == "function" then
-		local hui = gethui()
-		if hui then
-			guiParent = hui
-		end
+		guiParent = gethui()
+	else
+		guiParent = game:GetService("CoreGui")
 	end
 end)
 local parented = pcall(function()
@@ -257,11 +271,7 @@ UIS.InputBegan:Connect(function(input, gp)
 end)
 
 pcall(function()
-	StarterGui:SetCore("SendNotification", {
-		Title = "BMF Menu Loaded!",
-		Text = "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.",
-		Duration = 8,
-	})
+	safeNotify("BMF Menu Loaded!", "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.")
 end)
 
 --------------------------------------------------
@@ -421,11 +431,7 @@ end
 -- ERROR LOG (HOME)
 --------------------------------------------------
 
-local function logError(msg)
-	if ErrorLog then
-		ErrorLog.Text = "Error Log: " .. tostring(msg or "None")
-	end
-end
+-- Note: The local logError function was moved to the top scope to support early execution.
 
 --------------------------------------------------
 -- GAME MAP CHECKER FOR TRACERS
@@ -2191,13 +2197,7 @@ trickBotsBtn.TextColor3 = RED
 
 local fakeInvisBtn = createButton(ExploitsScroll, "Fake Invisibility Ability", function()
 	fakeInvisEndTime = os.clock() + 10
-	pcall(function()
-		StarterGui:SetCore("SendNotification", {
-			Title = "Fake Invisibility",
-			Text = "Active for 10 seconds. You are temporarily hidden!",
-			Duration = 3,
-		})
-	end)
+	safeNotify("Fake Invisibility", "Active for 10 seconds. You are temporarily hidden!")
 end)
 
 local function getSpoofTarget()
@@ -2386,9 +2386,7 @@ end, function(val)
 			end
 		end)
 		
-		pcall(function()
-			StarterGui:SetCore("SendNotification", { Title = "Spawned", Text = val .. " spawned successfully!", Duration = 3 })
-		end)
+		safeNotify("Spawned", val .. " spawned successfully!")
 	else
 		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage.")
 	end
