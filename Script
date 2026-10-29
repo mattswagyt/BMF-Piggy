@@ -2233,24 +2233,37 @@ local function applyControl(val)
 	if val == "STOP" then
 		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
 			controlledModel.HumanoidRootPart.Anchored = false
+			-- Restore normal collisions when un-controlling
+			for _, part in ipairs(controlledModel:GetDescendants()) do
+				if part:IsA("BasePart") then part.CanCollide = true end
+			end
 		end
 		controlledModel = nil
 		if workspace.CurrentCamera and LocalPlayer.Character then
 			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
 		end
+		-- Revert invisibility 
+		if LocalPlayer.Character then
+			for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+				if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+					part.LocalTransparencyModifier = 0
+				end
+			end
+		end
 	else
 		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
 			controlledModel.HumanoidRootPart.Anchored = false
+			for _, part in ipairs(controlledModel:GetDescendants()) do
+				if part:IsA("BasePart") then part.CanCollide = true end
+			end
 		end
 		
 		controlledModel = val
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") and val:FindFirstChild("HumanoidRootPart") then
+			-- Perfectly teleport player to the bot's current exact location
 			myChar.HumanoidRootPart.CFrame = val.HumanoidRootPart.CFrame
-			val.HumanoidRootPart.Anchored = true
-		end
-		if workspace.CurrentCamera and val:FindFirstChild("Humanoid") then
-			workspace.CurrentCamera.CameraSubject = val.Humanoid
+			workspace.CurrentCamera.CameraSubject = myChar:FindFirstChild("Humanoid")
 		end
 	end
 end
@@ -2304,8 +2317,9 @@ end, function(val)
 	local rs = game:GetService("ReplicatedStorage")
 	local botModel = nil
 	
+	-- Improved search for missing folders/different naming conventions
 	for _, obj in ipairs(rs:GetDescendants()) do
-		if obj:IsA("Model") and obj.Name == val then
+		if obj:IsA("Model") and (obj.Name == val or string.find(string.lower(obj.Name), string.lower(val))) and obj:FindFirstChild("Humanoid") then
 			botModel = obj
 			break
 		end
@@ -2320,6 +2334,44 @@ end, function(val)
 			end
 		end
 		
+		local referenceBot = nil
+		local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+		if piggyFolder then
+			for _, b in ipairs(piggyFolder:GetChildren()) do
+				if b:IsA("Model") and b:FindFirstChild("HumanoidRootPart") then
+					referenceBot = b
+					break
+				end
+			end
+		end
+
+		-- Transfer Sounds & Missing Scripts from an existing bot so it functions fully
+		if referenceBot then
+			for _, child in ipairs(referenceBot:GetChildren()) do
+				if (child:IsA("Script") or child:IsA("LocalScript") or child:IsA("ModuleScript")) and not clone:FindFirstChild(child.Name) then
+					child:Clone().Parent = clone
+				end
+			end
+			local refHRP = referenceBot:FindFirstChild("HumanoidRootPart")
+			local cloneHRP = clone:FindFirstChild("HumanoidRootPart")
+			if refHRP and cloneHRP then
+				for _, snd in ipairs(refHRP:GetChildren()) do
+					if snd:IsA("Sound") and not cloneHRP:FindFirstChild(snd.Name) then
+						snd:Clone().Parent = cloneHRP
+					end
+				end
+			end
+			local refHead = referenceBot:FindFirstChild("Head")
+			local cloneHead = clone:FindFirstChild("Head")
+			if refHead and cloneHead then
+				for _, snd in ipairs(refHead:GetChildren()) do
+					if snd:IsA("Sound") and not cloneHead:FindFirstChild(snd.Name) then
+						snd:Clone().Parent = cloneHead
+					end
+				end
+			end
+		end
+		
 		if not clone:FindFirstChild("BotMainScript") and not clone:FindFirstChild("SwarmBotMainScript") then
 			local scriptToClone = rs:FindFirstChild("BotMainScript", true) or rs:FindFirstChild("SwarmBotMainScript", true)
 			if scriptToClone then scriptToClone:Clone().Parent = clone end
@@ -2331,7 +2383,6 @@ end, function(val)
 			ms.Parent = clone
 		end
 		
-		local piggyFolder = workspace:FindFirstChild("PiggyNPC")
 		if not piggyFolder then
 			piggyFolder = Instance.new("Folder")
 			piggyFolder.Name = "PiggyNPC"
@@ -2352,8 +2403,11 @@ end, function(val)
 						 or CFrame.new(0, 5, 0)
 		end
 		
-		if clone:FindFirstChild("HumanoidRootPart") then
+		local botHrp = clone:FindFirstChild("HumanoidRootPart")
+		if botHrp then
 			clone:SetPrimaryPartCFrame(spawnPos)
+			-- Empty touch connection forces the Roblox client engine to spawn a TouchTransmitter
+			botHrp.Touched:Connect(function() end)
 		else
 			clone:MoveTo(spawnPos.Position)
 		end
@@ -2362,8 +2416,12 @@ end, function(val)
 		
 		task.spawn(function()
 			local botHum = clone:FindFirstChildOfClass("Humanoid")
-			local botHrp = clone:FindFirstChild("HumanoidRootPart")
 			if botHum and botHrp then
+				local animTrack = nil
+				local anim = Instance.new("Animation")
+				anim.AnimationId = "rbxassetid://4354320986" -- Generic run animation backup
+				pcall(function() animTrack = botHum:LoadAnimation(anim) end)
+				
 				while clone.Parent do
 					local target, dist = nil, math.huge
 					for _, plr in ipairs(Players:GetPlayers()) do
@@ -2375,7 +2433,15 @@ end, function(val)
 							end
 						end
 					end
-					if target then botHum:MoveTo(target.Position) end
+					if target then 
+						botHum:MoveTo(target.Position) 
+						-- Drive animation playback if internal bot script fails
+						if animTrack and not animTrack.IsPlaying and botHrp.Velocity.Magnitude > 1 then
+							animTrack:Play()
+						elseif animTrack and animTrack.IsPlaying and botHrp.Velocity.Magnitude <= 1 then
+							animTrack:Stop()
+						end
+					end
 					task.wait(0.2)
 				end
 			end
@@ -2384,7 +2450,7 @@ end, function(val)
 		pcall(function()
 			StarterGui:SetCore("SendNotification", {
 				Title = "Spawned",
-				Text = val .. " spawned successfully!",
+				Text = clone.Name .. " spawned fully!",
 				Duration = 3,
 			})
 		end)
@@ -2418,15 +2484,22 @@ RunService.Heartbeat:Connect(function()
 		end
 	end
 
-	-- Control Bot/Enemy Logic
+	-- Control Bot/Enemy Logic (Replaced player with bot perfectly, no physics explosions)
 	if controlledModel and controlledModel.Parent then
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") then
 			local myHRP = myChar.HumanoidRootPart
 			local botHRP = controlledModel:FindFirstChild("HumanoidRootPart")
 			if botHRP then
+				botHRP.Anchored = true
 				botHRP.CFrame = myHRP.CFrame
-				botHRP.Velocity = myHRP.AssemblyLinearVelocity
+				
+				-- Ensure no collision overlap forces the player around the map
+				for _, part in ipairs(controlledModel:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
 				
 				for _, part in ipairs(myChar:GetDescendants()) do
 					if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
