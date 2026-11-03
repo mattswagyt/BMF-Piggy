@@ -1834,6 +1834,7 @@ local fakeInvisEndTime = 0
 local cframeSpoofPending = false
 local controlledModel = nil
 local originalBotCFrame = nil
+local controlActiveTrack = false
 
 local godTracked = {}
 local alliesTracked = {}
@@ -2252,14 +2253,18 @@ local function applyControl(val)
 		if workspace.CurrentCamera and LocalPlayer.Character then
 			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
 		end
-		-- Revert invisibility 
+		-- Revert invisibility and completely restore player Touch abilities
 		if LocalPlayer.Character then
 			for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-				if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-					part.LocalTransparencyModifier = 0
+				if part:IsA("BasePart") then
+					if part.Name ~= "HumanoidRootPart" then
+						part.LocalTransparencyModifier = 0
+					end
+					part.CanTouch = true
 				end
 			end
 		end
+		controlActiveTrack = false
 	else
 		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
 			for _, part in ipairs(controlledModel:GetDescendants()) do
@@ -2268,6 +2273,19 @@ local function applyControl(val)
 		end
 		
 		controlledModel = val
+		
+		-- Logic to dynamically check for alive players to set Auto-Stop active tracking
+		local otherCount = 0
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= LocalPlayer and plr.Character then
+				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+				if hum and hum.Health > 0 then
+					otherCount = otherCount + 1
+				end
+			end
+		end
+		controlActiveTrack = (otherCount > 0)
+		
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") and val:FindFirstChild("HumanoidRootPart") then
 			-- Perfectly teleport player to the bot's current exact location
@@ -2331,15 +2349,30 @@ end, function(val)
 	local rs = game:GetService("ReplicatedStorage")
 	local botModel = nil
 	
-	-- Improved search for missing folders/different naming conventions
-	for _, obj in ipairs(rs:GetDescendants()) do
-		if obj:IsA("Model") and (obj.Name == val or string.find(string.lower(obj.Name), string.lower(val))) and obj:FindFirstChild("Humanoid") then
-			botModel = obj
-			break
+	-- Improved search for varying naming conventions and bypassed archivable logic
+	local searchName = val:gsub("Bot", ""):gsub("NPC", "")
+	local possibleNames = {val, searchName, searchName .. "Bot", searchName .. "NPC"}
+	
+	local function searchContainer(container)
+		for _, obj in ipairs(container:GetDescendants()) do
+			if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
+				for _, pName in ipairs(possibleNames) do
+					if string.lower(obj.Name) == string.lower(pName) then
+						return obj
+					end
+				end
+			end
 		end
+		return nil
+	end
+	
+	botModel = searchContainer(rs)
+	if not botModel then
+		pcall(function() botModel = searchContainer(game:GetService("Lighting")) end)
 	end
 	
 	if botModel then
+		botModel.Archivable = true
 		local clone = botModel:Clone()
 		
 		for _, part in ipairs(clone:GetDescendants()) do
@@ -2441,7 +2474,7 @@ end, function(val)
 			})
 		end)
 	else
-		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage.")
+		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage or Lighting.")
 	end
 end)
 
@@ -2478,7 +2511,11 @@ RunService.Heartbeat:Connect(function()
 			local botHRP = controlledModel:FindFirstChild("HumanoidRootPart")
 			if botHRP then
 				botHRP.Anchored = false -- Changed to false to force Roblox to replicate movement!
-				botHRP.CFrame = myHRP.CFrame
+				
+				-- Offset the Bot slightly ahead of velocity to fix delayed touches and kill targets instantly!
+				local velMag = myHRP.AssemblyLinearVelocity.Magnitude
+				local pushOffset = -1.5 - (velMag * 0.04)
+				botHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, pushOffset)
 				botHRP.Velocity = myHRP.AssemblyLinearVelocity
 				
 				-- Ensure no collision overlap forces the player around the map
@@ -2489,18 +2526,43 @@ RunService.Heartbeat:Connect(function()
 				end
 				
 				for _, part in ipairs(myChar:GetDescendants()) do
-					if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-						part.LocalTransparencyModifier = 1
+					if part:IsA("BasePart") then
+						if part.Name ~= "HumanoidRootPart" then
+							part.LocalTransparencyModifier = 1
+						end
+						-- Actively prevent the bot from registering its TouchTransmitter on YOU
+						part.CanTouch = false
 					end
 				end
+			end
+		end
+		
+		-- Auto-Stop Mechanic Logic Loop
+		if controlActiveTrack then
+			local aliveNow = 0
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= LocalPlayer and plr.Character then
+					local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+					if hum and hum.Health > 0 then
+						aliveNow = aliveNow + 1
+					end
+				end
+			end
+			if aliveNow == 0 then
+				applyControl("STOP")
 			end
 		end
 	else
 		local myChar = LocalPlayer.Character
 		if myChar then
 			for _, part in ipairs(myChar:GetDescendants()) do
-				if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.LocalTransparencyModifier == 1 then
-					part.LocalTransparencyModifier = 0
+				if part:IsA("BasePart") then
+					if part.Name ~= "HumanoidRootPart" and part.LocalTransparencyModifier == 1 then
+						part.LocalTransparencyModifier = 0
+					end
+					if part.CanTouch == false then
+						part.CanTouch = true
+					end
 				end
 			end
 		end
@@ -2540,6 +2602,7 @@ LocalPlayer.CharacterAdded:Connect(function(char)
 	cframeSpoofPending = false
 	mrPModel = nil
 	controlledModel = nil
+	controlActiveTrack = false
 
 	char.ChildAdded:Connect(function(child)
 		if godModeEnabled and child.Name == "Health" then
