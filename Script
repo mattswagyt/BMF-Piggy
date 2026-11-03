@@ -1551,6 +1551,17 @@ local function scanPiggies()
 			}
 		end
 	end
+	local spawnFolder = workspace:FindFirstChild("BMF_SpawnedBots")
+	if spawnFolder then
+		for _, piggy in ipairs(spawnFolder:GetChildren()) do
+			if piggy:IsA("Model") then
+				trackedPiggies[piggy] = {
+					name = cleanBotName(piggy.Name),
+					color = RED
+				}
+			end
+		end
+	end
 end
 
 local function scanEnemies()
@@ -1573,7 +1584,7 @@ local function scanEnemies()
 	end
 
 	for _, child in ipairs(workspace:GetChildren()) do
-		if child:IsA("Model") and child.Name ~= "PiggyNPC" then
+		if child:IsA("Model") and child.Name ~= "PiggyNPC" and child.Name ~= "BMF_SpawnedBots" then
 			local name, color = detectEnemyInfo(child)
 			if name then
 				trackedEnemies[child] = { name = name, color = color }
@@ -2232,8 +2243,7 @@ end)
 local function applyControl(val)
 	if val == "STOP" then
 		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
-			controlledModel.HumanoidRootPart.Anchored = false
-			-- Restore normal collisions when un-controlling
+			-- Re-anchor or restore normal physics logic here if necessary
 			for _, part in ipairs(controlledModel:GetDescendants()) do
 				if part:IsA("BasePart") then part.CanCollide = true end
 			end
@@ -2252,7 +2262,6 @@ local function applyControl(val)
 		end
 	else
 		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
-			controlledModel.HumanoidRootPart.Anchored = false
 			for _, part in ipairs(controlledModel:GetDescendants()) do
 				if part:IsA("BasePart") then part.CanCollide = true end
 			end
@@ -2276,6 +2285,12 @@ createDropdown(ExploitsScroll, "Control Bot (WIP)", function()
 			if bot:IsA("Model") then table.insert(opts, {name = bot.Name, value = bot}) end
 		end
 	end
+	local spawnedFolder = workspace:FindFirstChild("BMF_SpawnedBots")
+	if spawnedFolder then
+		for _, bot in ipairs(spawnedFolder:GetChildren()) do
+			if bot:IsA("Model") then table.insert(opts, {name = bot.Name, value = bot}) end
+		end
+	end
 	return opts
 end, applyControl)
 
@@ -2292,7 +2307,7 @@ createDropdown(ExploitsScroll, "Control Enemy (WIP)", function()
 		end
 	end
 	for _, child in ipairs(workspace:GetChildren()) do
-		if child:IsA("Model") and child.Name ~= "PiggyNPC" and detectEnemyInfo(child) then
+		if child:IsA("Model") and child.Name ~= "PiggyNPC" and child.Name ~= "BMF_SpawnedBots" and detectEnemyInfo(child) then
 			table.insert(opts, {name = child.Name, value = child})
 		end
 	end
@@ -2300,11 +2315,10 @@ createDropdown(ExploitsScroll, "Control Enemy (WIP)", function()
 end, applyControl)
 
 local BOTS_LIST = {
-	"PiggyBot", "MotherBot", "FatherBot", "SheepyBot", "DoggyNPC", "DoggyBot",
+	"PiggyBot", "MotherBot", "FatherBot", "SheepyBot", "DoggyNPC",
 	"CarverBot", "DessaBot", "RazeBot", "TeacherBot", "ZompiggyBot", "BearyBot",
-	"ClownyBot", "FoxyNPC", "FoxyBot", "EllyBot", "GrandmotherNPC", "GrandmotherBot",
-	"GrandmaBot", "GrandmaNPC", "RobbyBot", "Proto", "TorcherBot", "SoldierNPC",
-	"SoldierBot", "Soldier", "BadgyBot", "BadgyNPC", "Mr. P", "MrP", "Mr P"
+	"ClownyBot", "FoxyNPC", "EllyBot", "GrandmotherNPC", "RobbyBot", "Proto", 
+	"TorcherBot", "SoldierNPC", "BadgyBot", "MrP"
 }
 
 createDropdown(ExploitsScroll, "Spawn Bot (Troll, WIP)", function()
@@ -2334,44 +2348,6 @@ end, function(val)
 			end
 		end
 		
-		local referenceBot = nil
-		local piggyFolder = workspace:FindFirstChild("PiggyNPC")
-		if piggyFolder then
-			for _, b in ipairs(piggyFolder:GetChildren()) do
-				if b:IsA("Model") and b:FindFirstChild("HumanoidRootPart") then
-					referenceBot = b
-					break
-				end
-			end
-		end
-
-		-- Transfer Sounds & Missing Scripts from an existing bot so it functions fully
-		if referenceBot then
-			for _, child in ipairs(referenceBot:GetChildren()) do
-				if (child:IsA("Script") or child:IsA("LocalScript") or child:IsA("ModuleScript")) and not clone:FindFirstChild(child.Name) then
-					child:Clone().Parent = clone
-				end
-			end
-			local refHRP = referenceBot:FindFirstChild("HumanoidRootPart")
-			local cloneHRP = clone:FindFirstChild("HumanoidRootPart")
-			if refHRP and cloneHRP then
-				for _, snd in ipairs(refHRP:GetChildren()) do
-					if snd:IsA("Sound") and not cloneHRP:FindFirstChild(snd.Name) then
-						snd:Clone().Parent = cloneHRP
-					end
-				end
-			end
-			local refHead = referenceBot:FindFirstChild("Head")
-			local cloneHead = clone:FindFirstChild("Head")
-			if refHead and cloneHead then
-				for _, snd in ipairs(refHead:GetChildren()) do
-					if snd:IsA("Sound") and not cloneHead:FindFirstChild(snd.Name) then
-						snd:Clone().Parent = cloneHead
-					end
-				end
-			end
-		end
-		
 		if not clone:FindFirstChild("BotMainScript") and not clone:FindFirstChild("SwarmBotMainScript") then
 			local scriptToClone = rs:FindFirstChild("BotMainScript", true) or rs:FindFirstChild("SwarmBotMainScript", true)
 			if scriptToClone then scriptToClone:Clone().Parent = clone end
@@ -2383,17 +2359,22 @@ end, function(val)
 			ms.Parent = clone
 		end
 		
-		if not piggyFolder then
-			piggyFolder = Instance.new("Folder")
-			piggyFolder.Name = "PiggyNPC"
-			piggyFolder.Parent = workspace
+		-- Spawn bot in a completely separate folder to evade God Mode destroying its TouchTransmitter
+		local spawnFolder = workspace:FindFirstChild("BMF_SpawnedBots")
+		if not spawnFolder then
+			spawnFolder = Instance.new("Folder")
+			spawnFolder.Name = "BMF_SpawnedBots"
+			spawnFolder.Parent = workspace
 		end
 		
 		local spawnPos = nil
-		for _, existingBot in ipairs(piggyFolder:GetChildren()) do
-			if existingBot:IsA("Model") and existingBot:FindFirstChild("HumanoidRootPart") then
-				spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 7)
-				break
+		local piggyFolder = workspace:FindFirstChild("PiggyNPC")
+		if piggyFolder then
+			for _, existingBot in ipairs(piggyFolder:GetChildren()) do
+				if existingBot:IsA("Model") and existingBot:FindFirstChild("HumanoidRootPart") then
+					spawnPos = existingBot.HumanoidRootPart.CFrame * CFrame.new(0, 0, 7)
+					break
+				end
 			end
 		end
 		
@@ -2406,41 +2387,46 @@ end, function(val)
 		local botHrp = clone:FindFirstChild("HumanoidRootPart")
 		if botHrp then
 			clone:SetPrimaryPartCFrame(spawnPos)
-			-- Empty touch connection forces the Roblox client engine to spawn a TouchTransmitter
+			-- Empty touch connection forces the Roblox client engine to spawn a TouchTransmitter for you
 			botHrp.Touched:Connect(function() end)
+			
+			-- Generate NoCollisionConstraint to keep the bot's TouchTransmitter from killing you locally
+			local myChar = LocalPlayer.Character
+			if myChar then
+				for _, part in ipairs(myChar:GetDescendants()) do
+					if part:IsA("BasePart") then
+						local ncc = Instance.new("NoCollisionConstraint")
+						ncc.Part0 = part
+						ncc.Part1 = botHrp
+						ncc.Parent = clone
+					end
+				end
+			end
 		else
 			clone:MoveTo(spawnPos.Position)
 		end
 		
-		clone.Parent = piggyFolder
+		clone.Parent = spawnFolder
 		
 		task.spawn(function()
 			local botHum = clone:FindFirstChildOfClass("Humanoid")
 			if botHum and botHrp then
-				local animTrack = nil
-				local anim = Instance.new("Animation")
-				anim.AnimationId = "rbxassetid://4354320986" -- Generic run animation backup
-				pcall(function() animTrack = botHum:LoadAnimation(anim) end)
-				
 				while clone.Parent do
 					local target, dist = nil, math.huge
 					for _, plr in ipairs(Players:GetPlayers()) do
-						if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-							local d = (plr.Character.HumanoidRootPart.Position - botHrp.Position).Magnitude
-							if d < dist then
-								dist = d
-								target = plr.Character.HumanoidRootPart
+						-- Explicitly ignore the LocalPlayer so the spawned bot never chases you
+						if plr ~= LocalPlayer then
+							if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+								local d = (plr.Character.HumanoidRootPart.Position - botHrp.Position).Magnitude
+								if d < dist then
+									dist = d
+									target = plr.Character.HumanoidRootPart
+								end
 							end
 						end
 					end
 					if target then 
 						botHum:MoveTo(target.Position) 
-						-- Drive animation playback if internal bot script fails
-						if animTrack and not animTrack.IsPlaying and botHrp.Velocity.Magnitude > 1 then
-							animTrack:Play()
-						elseif animTrack and animTrack.IsPlaying and botHrp.Velocity.Magnitude <= 1 then
-							animTrack:Stop()
-						end
 					end
 					task.wait(0.2)
 				end
@@ -2484,15 +2470,16 @@ RunService.Heartbeat:Connect(function()
 		end
 	end
 
-	-- Control Bot/Enemy Logic (Replaced player with bot perfectly, no physics explosions)
+	-- Control Bot/Enemy Logic (Replaced player with bot perfectly, replicated physics!)
 	if controlledModel and controlledModel.Parent then
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") then
 			local myHRP = myChar.HumanoidRootPart
 			local botHRP = controlledModel:FindFirstChild("HumanoidRootPart")
 			if botHRP then
-				botHRP.Anchored = true
+				botHRP.Anchored = false -- Changed to false to force Roblox to replicate movement!
 				botHRP.CFrame = myHRP.CFrame
+				botHRP.Velocity = myHRP.AssemblyLinearVelocity
 				
 				-- Ensure no collision overlap forces the player around the map
 				for _, part in ipairs(controlledModel:GetDescendants()) do
@@ -2703,6 +2690,14 @@ createDropdown(MiscScroll, "Delete NPC", function()
 			end
 		end
 	end
+	local spawnedFolder = workspace:FindFirstChild("BMF_SpawnedBots")
+	if spawnedFolder then
+		for _, bot in ipairs(spawnedFolder:GetChildren()) do
+			if bot:IsA("Model") then
+				table.insert(opts, { name = bot.Name, value = bot })
+			end
+		end
+	end
 	if #opts == 0 then
 		table.insert(opts, { name = "No NPCs found", value = nil })
 	end
@@ -2735,7 +2730,7 @@ createDropdown(MiscScroll, "Delete Enemy", function()
 	end
 
 	for _, child in ipairs(workspace:GetChildren()) do
-		if child:IsA("Model") and child.Name ~= "PiggyNPC" then
+		if child:IsA("Model") and child.Name ~= "PiggyNPC" and child.Name ~= "BMF_SpawnedBots" then
 			local enName = detectEnemyInfo(child)
 			if enName then
 				addEnemy(child, enName .. " (" .. child.Name .. ")")
