@@ -1835,6 +1835,21 @@ local cframeSpoofPending = false
 local controlledModel = nil
 local originalBotCFrame = nil
 local controlActiveTrack = false
+local controlConstraints = {}
+local savedOcclusionMode = nil
+
+local function isControlledRelated(inst)
+	if not controlledModel or not inst then
+		return false
+	end
+	if inst == controlledModel then
+		return true
+	end
+	local ok, related = pcall(function()
+		return inst:IsDescendantOf(controlledModel) or controlledModel:IsDescendantOf(inst)
+	end)
+	return ok and related or false
+end
 
 local godTracked = {}
 local alliesTracked = {}
@@ -1853,6 +1868,22 @@ local GOD_MAPS = {
 	{ name = "Forest", head = "DogHead", grandmother = false },
 }
 
+local silencedHealth = {}
+
+local function silenceHealth(inst)
+	if not inst or silencedHealth[inst] then
+		return
+	end
+	silencedHealth[inst] = true
+	-- Server rejects :Destroy() on this instance ("parent of Health to NULL").
+	-- Disabling a script once is the same god-mode intent without the console spam.
+	if inst:IsA("BaseScript") then
+		pcall(function()
+			inst.Disabled = true
+		end)
+	end
+end
+
 local function applyGodModeSelf()
 	if not godModeEnabled then
 		return
@@ -1864,9 +1895,7 @@ local function applyGodModeSelf()
 
 	local healthScript = char:FindFirstChild("Health")
 	if healthScript then
-		pcall(function()
-			healthScript:Destroy()
-		end)
+		silenceHealth(healthScript)
 	end
 
 	local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1877,7 +1906,10 @@ local function applyGodModeSelf()
 end
 
 local function destroyTouch(obj)
-	if not obj then
+	if not obj or not obj.Parent then
+		return
+	end
+	if isControlledRelated(obj) then
 		return
 	end
 	local className = ""
@@ -1885,14 +1917,19 @@ local function destroyTouch(obj)
 		className = obj.ClassName
 	end)
 	if obj.Name == "TouchInterest" or obj.Name == "TouchTransmitter" or className == "TouchTransmitter" then
-		pcall(function()
-			obj:Destroy()
-		end)
+		-- TouchInterest is engine-locked. :Destroy() cannot reparent it and retries forever.
+		-- CanTouch = false is what actually stops the touch, and it does not spam the console.
+		local parent = obj.Parent
+		if parent and parent:IsA("BasePart") and parent.CanTouch ~= false then
+			pcall(function()
+				parent.CanTouch = false
+			end)
+		end
 	end
 end
 
 local function purgeHeadAndRootTouches(model)
-	if not model then
+	if not model or isControlledRelated(model) then
 		return
 	end
 	local enemy = model:FindFirstChild("Enemy")
@@ -1915,7 +1952,7 @@ local function purgeHeadAndRootTouches(model)
 end
 
 local function neuterModel(model)
-	if not model then
+	if not model or isControlledRelated(model) then
 		return
 	end
 	local enemy = model:FindFirstChild("Enemy")
@@ -1941,6 +1978,9 @@ local function bindNeuter(model)
 	end)
 	model.ChildAdded:Connect(function(child)
 		if godModeEnabled and child.Name == "Enemy" and child:IsA("BoolValue") then
+			if isControlledRelated(model) then
+				return
+			end
 			child.Value = false
 		end
 	end)
@@ -2165,20 +2205,12 @@ local function destroyMrPRootTouch(hrp)
 		return
 	end
 	for _, child in ipairs(hrp:GetChildren()) do
-		local className = ""
-		pcall(function()
-			className = child.ClassName
-		end)
-		if child.Name == "TouchTransmitter" or child.Name == "TouchInterest" or className == "TouchTransmitter" then
-			pcall(function()
-				child:Destroy()
-			end)
-		end
+		destroyTouch(child)
 	end
 end
 
 local function neuterMrP(model)
-	if not model or not model.Parent then
+	if not model or not model.Parent or isControlledRelated(model) then
 		return
 	end
 	local enemy = model:FindFirstChild("Enemy")
@@ -2241,39 +2273,120 @@ task.spawn(function()
 	end
 end)
 
+local function claimSimulationRadius()
+	-- Client-side stand-in for SetNetworkOwner (that call is server-only).
+	-- A huge radius lets the bot CFrame we write actually replicate, including while Speed is on.
+	pcall(function()
+		if type(setsimulationradius) == "function" then
+			setsimulationradius(math.huge, math.huge)
+		end
+	end)
+	pcall(function()
+		if type(sethiddenproperty) == "function" then
+			sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
+			sethiddenproperty(LocalPlayer, "MaximumSimulationRadius", math.huge)
+			sethiddenproperty(LocalPlayer, "MaxSimulationRadius", math.huge)
+		end
+	end)
+end
+
+local function clearControlConstraints()
+	for _, constraint in ipairs(controlConstraints) do
+		pcall(function()
+			constraint:Destroy()
+		end)
+	end
+	controlConstraints = {}
+end
+
+local function buildControlConstraints(bot, char)
+	clearControlConstraints()
+	if not bot or not char then
+		return
+	end
+	local botParts = {}
+	for _, part in ipairs(bot:GetDescendants()) do
+		if part:IsA("BasePart") then
+			table.insert(botParts, part)
+		end
+	end
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			for _, botPart in ipairs(botParts) do
+				local ncc = Instance.new("NoCollisionConstraint")
+				ncc.Name = "BMF_ControlNCC"
+				ncc.Part0 = part
+				ncc.Part1 = botPart
+				ncc.Parent = part
+				table.insert(controlConstraints, ncc)
+			end
+		end
+	end
+end
+
+local function restoreControlledBotPhysics(model)
+	if not model then
+		return
+	end
+	pcall(function()
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = true
+				part.CanQuery = true
+			end
+		end
+	end)
+end
+
+local function restoreControlCamera()
+	local cam = workspace.CurrentCamera
+	if cam then
+		pcall(function()
+			if savedOcclusionMode ~= nil then
+				cam.DevCameraOcclusionMode = savedOcclusionMode
+			end
+		end)
+		savedOcclusionMode = nil
+		if LocalPlayer.Character then
+			cam.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+		end
+	end
+end
+
+local function restoreControlPlayer(char)
+	if not char then
+		return
+	end
+	for _, part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			if part.Name ~= "HumanoidRootPart" then
+				part.LocalTransparencyModifier = 0
+			end
+			part.CanTouch = true
+			part.CanQuery = true
+		end
+	end
+end
+
 local function applyControl(val)
 	if val == "STOP" then
-		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
-			-- Re-anchor or restore normal physics logic here if necessary
-			for _, part in ipairs(controlledModel:GetDescendants()) do
-				if part:IsA("BasePart") then part.CanCollide = true end
-			end
+		clearControlConstraints()
+		if controlledModel then
+			restoreControlledBotPhysics(controlledModel)
 		end
 		controlledModel = nil
-		if workspace.CurrentCamera and LocalPlayer.Character then
-			workspace.CurrentCamera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
-		end
+		restoreControlCamera()
 		-- Revert invisibility and completely restore player Touch abilities
-		if LocalPlayer.Character then
-			for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					if part.Name ~= "HumanoidRootPart" then
-						part.LocalTransparencyModifier = 0
-					end
-					part.CanTouch = true
-				end
-			end
-		end
+		restoreControlPlayer(LocalPlayer.Character)
 		controlActiveTrack = false
 	else
-		if controlledModel and controlledModel:FindFirstChild("HumanoidRootPart") then
-			for _, part in ipairs(controlledModel:GetDescendants()) do
-				if part:IsA("BasePart") then part.CanCollide = true end
-			end
+		if controlledModel then
+			clearControlConstraints()
+			restoreControlledBotPhysics(controlledModel)
 		end
-		
+
 		controlledModel = val
-		
+
 		-- Logic to dynamically check for alive players to set Auto-Stop active tracking
 		local otherCount = 0
 		for _, plr in ipairs(Players:GetPlayers()) do
@@ -2285,12 +2398,41 @@ local function applyControl(val)
 			end
 		end
 		controlActiveTrack = (otherCount > 0)
-		
+
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") and val:FindFirstChild("HumanoidRootPart") then
 			-- Perfectly teleport player to the bot's current exact location
 			myChar.HumanoidRootPart.CFrame = val.HumanoidRootPart.CFrame
-			workspace.CurrentCamera.CameraSubject = myChar:FindFirstChild("Humanoid")
+		end
+
+		local cam = workspace.CurrentCamera
+		if cam then
+			pcall(function()
+				if savedOcclusionMode == nil then
+					savedOcclusionMode = cam.DevCameraOcclusionMode
+				end
+				cam.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+			end)
+			local botHum = val:FindFirstChildOfClass("Humanoid")
+			cam.CameraSubject = botHum or val:FindFirstChild("HumanoidRootPart") or (myChar and myChar:FindFirstChild("Humanoid"))
+		end
+
+		if myChar then
+			buildControlConstraints(val, myChar)
+		end
+		claimSimulationRadius()
+
+		local enemyFlag = val:FindFirstChild("Enemy")
+		if enemyFlag and enemyFlag:IsA("BoolValue") then
+			enemyFlag.Value = true
+		end
+		for _, part in ipairs(val:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Anchored = false
+				part.CanCollide = false
+				part.CanQuery = false
+				part.CanTouch = true
+			end
 		end
 	end
 end
@@ -2339,6 +2481,320 @@ local BOTS_LIST = {
 	"TorcherBot", "SoldierNPC", "BadgyBot", "MrP"
 }
 
+local function squashBotName(name)
+	return string.lower(tostring(name or "")):gsub("[^%w]", "")
+end
+
+-- Equality only. Substring matching would treat Zompiggy as Piggy.
+local BOT_ALIAS = {
+	piggybot = {"piggybot", "piggy", "littlebrother", "littlebrotherbot"},
+	motherbot = {"motherbot", "mother", "motherpiggy"},
+	fatherbot = {"fatherbot", "father", "fatherpiggy"},
+	sheepybot = {"sheepybot", "sheepy"},
+	doggynpc = {"doggynpc", "doggy", "doggybot"},
+	carverbot = {"carverbot", "carver"},
+	dessabot = {"dessabot", "dessa"},
+	razebot = {"razebot", "raze"},
+	teacherbot = {"teacherbot", "teacher"},
+	zompiggybot = {"zompiggybot", "zompiggy"},
+	bearybot = {"bearybot", "beary"},
+	clownybot = {"clownybot", "clowny"},
+	foxynpc = {"foxynpc", "foxy", "foxybot"},
+	ellybot = {"ellybot", "elly"},
+	grandmothernpc = {"grandmothernpc", "grandmother", "granny", "grandmotherbot"},
+	robbybot = {"robbybot", "robby"},
+	proto = {"proto", "protopiggy", "protobot"},
+	torcherbot = {"torcherbot", "torcher"},
+	soldiernpc = {"soldiernpc", "soldier", "soldierbot"},
+	badgybot = {"badgybot", "badgy"},
+	mrp = {"mrp", "mrpbot", "misterp", "mrpiggy"},
+}
+
+local function nameMatchesBot(instanceName, listName)
+	local squashed = squashBotName(instanceName)
+	if squashed == "" then
+		return false
+	end
+	local aliases = BOT_ALIAS[squashBotName(listName)]
+	if not aliases then
+		return squashed == squashBotName(listName)
+	end
+	for _, alias in ipairs(aliases) do
+		if squashed == alias then
+			return true
+		end
+	end
+	return false
+end
+
+local function listKeyForModel(model)
+	if not model then
+		return nil
+	end
+	for _, listName in ipairs(BOTS_LIST) do
+		if nameMatchesBot(model.Name, listName) then
+			return listName
+		end
+	end
+	return nil
+end
+
+local function isPlayerCharacter(model)
+	if not model or not model:IsA("Model") then
+		return false
+	end
+	local ok, plr = pcall(function()
+		return Players:GetPlayerFromCharacter(model)
+	end)
+	return ok and plr ~= nil
+end
+
+local function isUnderFolderNamed(inst, folderName)
+	local current = inst
+	while current and current ~= game do
+		if current.Name == folderName then
+			return true
+		end
+		current = current.Parent
+	end
+	return false
+end
+
+local function resolveRig(obj)
+	if not obj then
+		return nil
+	end
+	if obj:IsA("Model") then
+		local hum = obj:FindFirstChildOfClass("Humanoid")
+		if hum then
+			return obj
+		end
+	end
+	if obj:IsA("Model") or obj:IsA("Folder") then
+		local hum = obj:FindFirstChildWhichIsA("Humanoid", true)
+		if hum and hum.Parent and hum.Parent:IsA("Model") then
+			return hum.Parent
+		end
+	end
+	return nil
+end
+
+local function getBotTemplateFolder()
+	local rs = game:GetService("ReplicatedStorage")
+	local folder = rs:FindFirstChild("BMF_BotTemplates")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "BMF_BotTemplates"
+		folder.Parent = rs
+	end
+	return folder
+end
+
+local archiveFailNotified = {}
+
+local function archiveBotModel(model)
+	local key = listKeyForModel(model)
+	if not key then
+		return nil
+	end
+	if isPlayerCharacter(model) then
+		return nil
+	end
+	if isUnderFolderNamed(model, "BMF_SpawnedBots") then
+		return nil
+	end
+	if isUnderFolderNamed(model, "BMF_BotTemplates") then
+		return model
+	end
+	local rig = resolveRig(model)
+	if not rig then
+		return nil
+	end
+	local folder = getBotTemplateFolder()
+	local existing = folder:FindFirstChild(key)
+	if existing then
+		return existing
+	end
+	pcall(function()
+		rig.Archivable = true
+	end)
+	local clone = nil
+	pcall(function()
+		clone = rig:Clone()
+	end)
+	if not clone then
+		logError("Could not archive bot model '" .. tostring(rig.Name) .. "'.")
+		if not archiveFailNotified[key] then
+			archiveFailNotified[key] = true
+			pcall(function()
+				StarterGui:SetCore("SendNotification", {
+					Title = "Spawn Bot",
+					Text = "Could not save " .. tostring(key) .. " yet.",
+					Duration = 4,
+				})
+			end)
+		end
+		return nil
+	end
+	clone.Name = key
+	clone.Parent = folder
+	return clone
+end
+
+local function takeBotMatch(obj, listName, allowArchive)
+	if not obj or not (obj:IsA("Model") or obj:IsA("Folder")) then
+		return nil
+	end
+	if not nameMatchesBot(obj.Name, listName) then
+		return nil
+	end
+	local rig = resolveRig(obj)
+	if not rig or isPlayerCharacter(rig) or isUnderFolderNamed(rig, "BMF_SpawnedBots") then
+		return nil
+	end
+	if allowArchive and not isUnderFolderNamed(rig, "BMF_BotTemplates") then
+		local archived = archiveBotModel(rig)
+		if archived then
+			return archived
+		end
+	end
+	return rig
+end
+
+local function searchBotContainer(container, listName, allowArchive)
+	if not container then
+		return nil
+	end
+	local found = takeBotMatch(container, listName, allowArchive)
+	if found then
+		return found
+	end
+	local list = nil
+	local ok = pcall(function()
+		list = container:GetDescendants()
+	end)
+	if not ok or not list then
+		return nil
+	end
+	for _, obj in ipairs(list) do
+		found = takeBotMatch(obj, listName, allowArchive)
+		if found then
+			return found
+		end
+	end
+	return nil
+end
+
+local function findBotTemplate(listName)
+	local piggy = workspace:FindFirstChild("PiggyNPC")
+	if piggy then
+		local found = searchBotContainer(piggy, listName, true)
+		if found then
+			return found
+		end
+	end
+	local rs = game:GetService("ReplicatedStorage")
+	local templates = rs:FindFirstChild("BMF_BotTemplates")
+	if templates then
+		local found = searchBotContainer(templates, listName, false)
+		if found then
+			return found
+		end
+	end
+	local found = searchBotContainer(rs, listName, true)
+	if found then
+		return found
+	end
+	local lightingFound = nil
+	pcall(function()
+		lightingFound = searchBotContainer(Lighting, listName, true)
+	end)
+	if lightingFound then
+		return lightingFound
+	end
+	for _, child in ipairs(workspace:GetChildren()) do
+		if child.Name ~= "BMF_SpawnedBots" and child.Name ~= "PiggyNPC" and child.Name ~= "BMF_BotTemplates" then
+			found = searchBotContainer(child, listName, true)
+			if found then
+				return found
+			end
+		end
+	end
+	if type(getnilinstances) == "function" then
+		local nils = nil
+		pcall(function()
+			nils = getnilinstances()
+		end)
+		if type(nils) == "table" then
+			for _, obj in pairs(nils) do
+				local picked = nil
+				pcall(function()
+					if typeof(obj) == "Instance" then
+						picked = takeBotMatch(obj, listName, true)
+					end
+				end)
+				if picked then
+					return picked
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local watchedPiggyFolders = {}
+
+local function tryArchivePiggyChild(child)
+	if not child then
+		return
+	end
+	task.spawn(function()
+		for _ = 1, 8 do
+			if not child.Parent then
+				return
+			end
+			local rig = nil
+			if (child:IsA("Model") or child:IsA("Folder")) and listKeyForModel(child) then
+				rig = resolveRig(child)
+			end
+			if rig then
+				archiveBotModel(rig)
+				return
+			end
+			task.wait(0.25)
+		end
+	end)
+end
+
+local function watchPiggyFolder(folder)
+	if not folder or watchedPiggyFolders[folder] or folder:GetAttribute("BMF_ArchiveWatched") then
+		return
+	end
+	watchedPiggyFolders[folder] = true
+	pcall(function()
+		folder:SetAttribute("BMF_ArchiveWatched", true)
+	end)
+	for _, child in ipairs(folder:GetChildren()) do
+		tryArchivePiggyChild(child)
+	end
+	folder.ChildAdded:Connect(function(child)
+		tryArchivePiggyChild(child)
+	end)
+end
+
+task.defer(function()
+	local existing = workspace:FindFirstChild("PiggyNPC")
+	if existing then
+		watchPiggyFolder(existing)
+	end
+end)
+
+workspace.ChildAdded:Connect(function(child)
+	if child.Name == "PiggyNPC" then
+		watchPiggyFolder(child)
+	end
+end)
+
 createDropdown(ExploitsScroll, "Spawn Bot (Troll, WIP)", function()
 	local opts = {}
 	for _, name in ipairs(BOTS_LIST) do
@@ -2347,33 +2803,26 @@ createDropdown(ExploitsScroll, "Spawn Bot (Troll, WIP)", function()
 	return opts
 end, function(val)
 	local rs = game:GetService("ReplicatedStorage")
-	local botModel = nil
-	
-	-- Improved search for varying naming conventions and bypassed archivable logic
-	local searchName = val:gsub("Bot", ""):gsub("NPC", "")
-	local possibleNames = {val, searchName, searchName .. "Bot", searchName .. "NPC"}
-	
-	local function searchContainer(container)
-		for _, obj in ipairs(container:GetDescendants()) do
-			if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
-				for _, pName in ipairs(possibleNames) do
-					if string.lower(obj.Name) == string.lower(pName) then
-						return obj
-					end
-				end
-			end
-		end
-		return nil
-	end
-	
-	botModel = searchContainer(rs)
-	if not botModel then
-		pcall(function() botModel = searchContainer(game:GetService("Lighting")) end)
-	end
+	-- PiggyNPC first, then the client archive, then ReplicatedStorage / Lighting / workspace.
+	local botModel = findBotTemplate(val)
 	
 	if botModel then
 		botModel.Archivable = true
-		local clone = botModel:Clone()
+		local clone = nil
+		pcall(function()
+			clone = botModel:Clone()
+		end)
+		if not clone then
+			logError("Bot model '" .. tostring(val) .. "' could not be cloned.")
+			pcall(function()
+				StarterGui:SetCore("SendNotification", {
+					Title = "Spawn Bot",
+					Text = "Found " .. tostring(val) .. " but it could not be cloned.",
+					Duration = 6,
+				})
+			end)
+			return
+		end
 		
 		for _, part in ipairs(clone:GetDescendants()) do
 			if part:IsA("BasePart") then
@@ -2475,6 +2924,13 @@ end, function(val)
 		end)
 	else
 		logError("Bot model '" .. tostring(val) .. "' not found in ReplicatedStorage or Lighting.")
+		pcall(function()
+			StarterGui:SetCore("SendNotification", {
+				Title = "Spawn Bot",
+				Text = "No replicated rig for " .. tostring(val) .. " yet. It saves automatically when that bot spawns at 9:30.",
+				Duration = 6,
+			})
+		end)
 	end
 end)
 
@@ -2510,29 +2966,54 @@ RunService.Heartbeat:Connect(function()
 			local myHRP = myChar.HumanoidRootPart
 			local botHRP = controlledModel:FindFirstChild("HumanoidRootPart")
 			if botHRP then
-				botHRP.Anchored = false -- Changed to false to force Roblox to replicate movement!
-				
-				-- Offset the Bot slightly ahead of velocity to fix delayed touches and kill targets instantly!
-				local velMag = myHRP.AssemblyLinearVelocity.Magnitude
-				local pushOffset = -1.5 - (velMag * 0.04)
-				botHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, pushOffset)
-				botHRP.Velocity = myHRP.AssemblyLinearVelocity
-				
-				-- Ensure no collision overlap forces the player around the map
+				claimSimulationRadius()
+				botHRP.Anchored = false
+				-- Exact match. A speed-scaled lead put the mesh in the camera and swept the hitbox back through you.
+				botHRP.CFrame = myHRP.CFrame
+				local linear = myHRP.AssemblyLinearVelocity
+				local angular = myHRP.AssemblyAngularVelocity
+				pcall(function()
+					botHRP.AssemblyLinearVelocity = linear
+					botHRP.AssemblyAngularVelocity = angular
+				end)
+				botHRP.Velocity = linear
+				local enemyFlag = controlledModel:FindFirstChild("Enemy")
+				if enemyFlag and enemyFlag:IsA("BoolValue") and enemyFlag.Value ~= true then
+					enemyFlag.Value = true
+				end
 				for _, part in ipairs(controlledModel:GetDescendants()) do
 					if part:IsA("BasePart") then
 						part.CanCollide = false
+						part.CanQuery = false
+						if part.CanTouch ~= true then
+							part.CanTouch = true
+						end
 					end
 				end
-				
 				for _, part in ipairs(myChar:GetDescendants()) do
 					if part:IsA("BasePart") then
 						if part.Name ~= "HumanoidRootPart" then
 							part.LocalTransparencyModifier = 1
 						end
-						-- Actively prevent the bot from registering its TouchTransmitter on YOU
 						part.CanTouch = false
+						part.CanQuery = false
 					end
+				end
+				local cam = workspace.CurrentCamera
+				if cam then
+					local botHum = controlledModel:FindFirstChildOfClass("Humanoid")
+					local subject = botHum or botHRP
+					if cam.CameraSubject ~= subject then
+						cam.CameraSubject = subject
+					end
+					pcall(function()
+						if cam.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam then
+							if savedOcclusionMode == nil then
+								savedOcclusionMode = cam.DevCameraOcclusionMode
+							end
+							cam.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+						end
+					end)
 				end
 			end
 		end
@@ -2553,6 +3034,9 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 	else
+		if controlledModel and not controlledModel.Parent then
+			applyControl("STOP")
+		end
 		local myChar = LocalPlayer.Character
 		if myChar then
 			for _, part in ipairs(myChar:GetDescendants()) do
@@ -2562,6 +3046,9 @@ RunService.Heartbeat:Connect(function()
 					end
 					if part.CanTouch == false then
 						part.CanTouch = true
+					end
+					if part.CanQuery == false then
+						part.CanQuery = true
 					end
 				end
 			end
@@ -2601,14 +3088,15 @@ LocalPlayer.CharacterAdded:Connect(function(char)
 	realUserCFrame = nil
 	cframeSpoofPending = false
 	mrPModel = nil
-	controlledModel = nil
-	controlActiveTrack = false
+	if controlledModel then
+		applyControl("STOP")
+	else
+		controlActiveTrack = false
+	end
 
 	char.ChildAdded:Connect(function(child)
 		if godModeEnabled and child.Name == "Health" then
-			pcall(function()
-				child:Destroy()
-			end)
+			silenceHealth(child)
 		end
 	end)
 end)
@@ -2621,7 +3109,7 @@ task.spawn(function()
 			for model in pairs(godTracked) do
 				if model and model.Parent then
 					local enemy = model:FindFirstChild("Enemy")
-					if enemy and enemy:IsA("BoolValue") and enemy.Value == true then
+					if enemy and enemy:IsA("BoolValue") and enemy.Value == true and not isControlledRelated(model) then
 						enemy.Value = false
 					end
 				else
@@ -2641,7 +3129,7 @@ task.spawn(function()
 					alliesTracked[model] = nil
 				else
 					local enemy = model:FindFirstChild("Enemy")
-					if enemy and enemy:IsA("BoolValue") and enemy.Value == true then
+					if enemy and enemy:IsA("BoolValue") and enemy.Value == true and not isControlledRelated(model) then
 						enemy.Value = false
 					end
 				end
