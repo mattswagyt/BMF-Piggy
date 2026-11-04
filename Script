@@ -250,12 +250,15 @@ UIS.InputBegan:Connect(function(input, gp)
 	end
 end)
 
-pcall(function()
-	StarterGui:SetCore("SendNotification", {
-		Title = "BMF Menu Loaded!",
-		Text = "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.",
-		Duration = 8,
-	})
+task.spawn(function()
+	task.wait(2.5) -- Delayed to prevent CoreGui Localization nil error
+	pcall(function()
+		StarterGui:SetCore("SendNotification", {
+			Title = "BMF Menu Loaded!",
+			Text = "Piggy (Book 1) V2.0.4 ready. Press Delete to toggle.",
+			Duration = 8,
+		})
+	end)
 end)
 
 --------------------------------------------------
@@ -450,7 +453,7 @@ local function getCurrentMapName()
 end
 
 --------------------------------------------------
--- LAG-FREE ESP CORE (single render loop, reused drawings)
+-- LAG-FREE ESP CORE (Optimized properties)
 --------------------------------------------------
 
 local DrawingAvailable = (type(Drawing) == "table" and type(Drawing.new) == "function")
@@ -483,9 +486,7 @@ local function getWorldPosition(target)
 end
 
 local function highlightTarget(target, color, customName)
-	if not target then
-		return
-	end
+	if not target then return end
 	local hlName = customName or "BMF_Highlight"
 	local highlight = target:FindFirstChild(hlName)
 	if not highlight then
@@ -496,16 +497,16 @@ local function highlightTarget(target, color, customName)
 		highlight.FillTransparency = 0.5
 		highlight.OutlineTransparency = 0
 		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.FillColor = color
 		highlight.Parent = target
+	else
+		if highlight.FillColor ~= color then highlight.FillColor = color end
 	end
-	highlight.FillColor = color
-	highlight.Enabled = true
+	if not highlight.Enabled then highlight.Enabled = true end
 end
 
 local function removeHighlight(target, customName)
-	if not target then
-		return
-	end
+	if not target then return end
 	local hlName = customName or "BMF_Highlight"
 	local highlight = target:FindFirstChild(hlName)
 	if highlight then
@@ -514,25 +515,19 @@ local function removeHighlight(target, customName)
 end
 
 local function updateTracer(target, color, tagKey)
-	if not DrawingAvailable then
-		return
-	end
+	if not DrawingAvailable then return end
 	local line = ESP_Tracers[tagKey]
 
 	if not isInGameRound() then
-		if line then
+		if line and line.Visible then
 			line.Visible = false
 		end
 		return
 	end
 
 	if not line then
-		local ok, newLine = pcall(function()
-			return Drawing.new("Line")
-		end)
-		if not ok or not newLine then
-			return
-		end
+		local ok, newLine = pcall(function() return Drawing.new("Line") end)
+		if not ok or not newLine then return end
 		newLine.Thickness = 2
 		ESP_Tracers[tagKey] = newLine
 		line = newLine
@@ -544,14 +539,18 @@ local function updateTracer(target, color, tagKey)
 	if camera and worldPos then
 		local pos, onScreen = camera:WorldToViewportPoint(worldPos)
 		if onScreen and pos.Z > 0 then
-			line.From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
-			line.To = Vector2.new(pos.X, pos.Y)
-			line.Color = color
-			line.Visible = true
+			local fromVec = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
+			local toVec = Vector2.new(pos.X, pos.Y)
+			
+			if line.From ~= fromVec then line.From = fromVec end
+			if line.To ~= toVec then line.To = toVec end
+			if line.Color ~= color then line.Color = color end
+			if not line.Visible then line.Visible = true end
 			return
 		end
 	end
-	line.Visible = false
+	
+	if line.Visible then line.Visible = false end
 end
 
 local function removeTracer(tagKey)
@@ -567,16 +566,14 @@ end
 
 local function hideAllTracers()
 	for _, line in pairs(ESP_Tracers) do
-		if line then
+		if line and line.Visible then
 			line.Visible = false
 		end
 	end
 end
 
 local function updateNameTag(target, text, color)
-	if not target then
-		return
-	end
+	if not target then return end
 	local billboard = target:FindFirstChild("BMF_NameTag")
 	if not billboard then
 		billboard = Instance.new("BillboardGui")
@@ -599,15 +596,13 @@ local function updateNameTag(target, text, color)
 
 	local label = billboard:FindFirstChild("TagLabel")
 	if label then
-		label.Text = text
-		label.TextColor3 = color
+		if label.Text ~= text then label.Text = text end
+		if label.TextColor3 ~= color then label.TextColor3 = color end
 	end
 end
 
 local function removeNameTag(target)
-	if not target then
-		return
-	end
+	if not target then return end
 	local billboard = target:FindFirstChild("BMF_NameTag")
 	if billboard then
 		billboard:Destroy()
@@ -1834,6 +1829,7 @@ local fakeInvisEndTime = 0
 local cframeSpoofPending = false
 local controlledModel = nil
 local originalBotCFrame = nil
+local savedControlCFrame = nil
 local controlActiveTrack = false
 local controlConstraints = {}
 local savedOcclusionMode = nil
@@ -1875,8 +1871,6 @@ local function silenceHealth(inst)
 		return
 	end
 	silencedHealth[inst] = true
-	-- Server rejects :Destroy() on this instance ("parent of Health to NULL").
-	-- Disabling a script once is the same god-mode intent without the console spam.
 	if inst:IsA("BaseScript") then
 		pcall(function()
 			inst.Disabled = true
@@ -1917,8 +1911,6 @@ local function destroyTouch(obj)
 		className = obj.ClassName
 	end)
 	if obj.Name == "TouchInterest" or obj.Name == "TouchTransmitter" or className == "TouchTransmitter" then
-		-- TouchInterest is engine-locked. :Destroy() cannot reparent it and retries forever.
-		-- CanTouch = false is what actually stops the touch, and it does not spam the console.
 		local parent = obj.Parent
 		if parent and parent:IsA("BasePart") and parent.CanTouch ~= false then
 			pcall(function()
@@ -2274,8 +2266,6 @@ task.spawn(function()
 end)
 
 local function claimSimulationRadius()
-	-- Client-side stand-in for SetNetworkOwner (that call is server-only).
-	-- A huge radius lets the bot CFrame we write actually replicate, including while Speed is on.
 	pcall(function()
 		if type(setsimulationradius) == "function" then
 			setsimulationradius(math.huge, math.huge)
@@ -2376,9 +2366,9 @@ local function applyControl(val)
 		end
 		controlledModel = nil
 		restoreControlCamera()
-		-- Revert invisibility and completely restore player Touch abilities
 		restoreControlPlayer(LocalPlayer.Character)
 		controlActiveTrack = false
+		savedControlCFrame = nil 
 	else
 		if controlledModel then
 			clearControlConstraints()
@@ -2386,24 +2376,31 @@ local function applyControl(val)
 		end
 
 		controlledModel = val
+		
+		local myChar = LocalPlayer.Character
+		if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+			if not savedControlCFrame then
+				savedControlCFrame = myChar.HumanoidRootPart.CFrame
+			end
+			
+			if val:FindFirstChild("HumanoidRootPart") then
+				myChar.HumanoidRootPart.CFrame = val.HumanoidRootPart.CFrame
+			end
+		end
 
-		-- Logic to dynamically check for alive players to set Auto-Stop active tracking
 		local otherCount = 0
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if plr ~= LocalPlayer and plr.Character then
 				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
 				if hum and hum.Health > 0 then
-					otherCount = otherCount + 1
+					local ghostVal = plr:FindFirstChild("Ghost") or plr.Character:FindFirstChild("Ghost")
+					if not (ghostVal and ghostVal:IsA("BoolValue") and ghostVal.Value == true) then
+						otherCount = otherCount + 1
+					end
 				end
 			end
 		end
 		controlActiveTrack = (otherCount > 0)
-
-		local myChar = LocalPlayer.Character
-		if myChar and myChar:FindFirstChild("HumanoidRootPart") and val:FindFirstChild("HumanoidRootPart") then
-			-- Perfectly teleport player to the bot's current exact location
-			myChar.HumanoidRootPart.CFrame = val.HumanoidRootPart.CFrame
-		end
 
 		local cam = workspace.CurrentCamera
 		if cam then
@@ -2485,7 +2482,6 @@ local function squashBotName(name)
 	return string.lower(tostring(name or "")):gsub("[^%w]", "")
 end
 
--- Equality only. Substring matching would treat Zompiggy as Piggy.
 local BOT_ALIAS = {
 	piggybot = {"piggybot", "piggy", "littlebrother", "littlebrotherbot"},
 	motherbot = {"motherbot", "mother", "motherpiggy"},
@@ -2507,7 +2503,7 @@ local BOT_ALIAS = {
 	torcherbot = {"torcherbot", "torcher"},
 	soldiernpc = {"soldiernpc", "soldier", "soldierbot"},
 	badgybot = {"badgybot", "badgy"},
-	mrp = {"mrp", "mrpbot", "misterp", "mrpiggy"},
+	mrp = {"mrp", "mrpbot", "misterp", "mrpiggy", "mrpboss"},
 }
 
 local function nameMatchesBot(instanceName, listName)
@@ -2803,7 +2799,6 @@ createDropdown(ExploitsScroll, "Spawn Bot (Troll, WIP)", function()
 	return opts
 end, function(val)
 	local rs = game:GetService("ReplicatedStorage")
-	-- PiggyNPC first, then the client archive, then ReplicatedStorage / Lighting / workspace.
 	local botModel = findBotTemplate(val)
 	
 	if botModel then
@@ -2841,7 +2836,6 @@ end, function(val)
 			ms.Parent = clone
 		end
 		
-		-- Spawn bot in a completely separate folder to evade God Mode destroying its TouchTransmitter
 		local spawnFolder = workspace:FindFirstChild("BMF_SpawnedBots")
 		if not spawnFolder then
 			spawnFolder = Instance.new("Folder")
@@ -2868,11 +2862,34 @@ end, function(val)
 		
 		local botHrp = clone:FindFirstChild("HumanoidRootPart")
 		if botHrp then
+			-- Copy missing essentials from active bots to properly configure audio and animations
+			local templateBot = nil
+			if piggyFolder then
+				for _, b in ipairs(piggyFolder:GetChildren()) do
+					if b:IsA("Model") and b:FindFirstChild("HumanoidRootPart") then
+						templateBot = b
+						break
+					end
+				end
+			end
+			if templateBot then
+				local tempHRP = templateBot:FindFirstChild("HumanoidRootPart")
+				if tempHRP then
+					for _, sound in ipairs(tempHRP:GetChildren()) do
+						if sound:IsA("Sound") and not botHrp:FindFirstChild(sound.Name) then
+							sound:Clone().Parent = botHrp
+						end
+					end
+				end
+				local animate = templateBot:FindFirstChild("Animate") or templateBot:FindFirstChild("Animations")
+				if animate and not clone:FindFirstChild(animate.Name) then
+					animate:Clone().Parent = clone
+				end
+			end
+
 			clone:SetPrimaryPartCFrame(spawnPos)
-			-- Empty touch connection forces the Roblox client engine to spawn a TouchTransmitter for you
 			botHrp.Touched:Connect(function() end)
 			
-			-- Generate NoCollisionConstraint to keep the bot's TouchTransmitter from killing you locally
 			local myChar = LocalPlayer.Character
 			if myChar then
 				for _, part in ipairs(myChar:GetDescendants()) do
@@ -2896,7 +2913,6 @@ end, function(val)
 				while clone.Parent do
 					local target, dist = nil, math.huge
 					for _, plr in ipairs(Players:GetPlayers()) do
-						-- Explicitly ignore the LocalPlayer so the spawned bot never chases you
 						if plr ~= LocalPlayer then
 							if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
 								local d = (plr.Character.HumanoidRootPart.Position - botHrp.Position).Magnitude
@@ -2959,7 +2975,6 @@ RunService.Heartbeat:Connect(function()
 		end
 	end
 
-	-- Control Bot/Enemy Logic (Replaced player with bot perfectly, replicated physics!)
 	if controlledModel and controlledModel.Parent then
 		local myChar = LocalPlayer.Character
 		if myChar and myChar:FindFirstChild("HumanoidRootPart") then
@@ -2968,7 +2983,6 @@ RunService.Heartbeat:Connect(function()
 			if botHRP then
 				claimSimulationRadius()
 				botHRP.Anchored = false
-				-- Exact match. A speed-scaled lead put the mesh in the camera and swept the hitbox back through you.
 				botHRP.CFrame = myHRP.CFrame
 				local linear = myHRP.AssemblyLinearVelocity
 				local angular = myHRP.AssemblyAngularVelocity
@@ -2995,8 +3009,10 @@ RunService.Heartbeat:Connect(function()
 						if part.Name ~= "HumanoidRootPart" then
 							part.LocalTransparencyModifier = 1
 						end
-						part.CanTouch = false
-						part.CanQuery = false
+						
+						-- Enforce CanTouch continuous override to fully prevent mid-control jumpscares
+						if part.CanTouch ~= false then part.CanTouch = false end
+						if part.CanQuery ~= false then part.CanQuery = false end
 					end
 				end
 				local cam = workspace.CurrentCamera
@@ -3018,18 +3034,28 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 		
-		-- Auto-Stop Mechanic Logic Loop
 		if controlActiveTrack then
 			local aliveNow = 0
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if plr ~= LocalPlayer and plr.Character then
 					local hum = plr.Character:FindFirstChildOfClass("Humanoid")
 					if hum and hum.Health > 0 then
-						aliveNow = aliveNow + 1
+						local ghostVal = plr:FindFirstChild("Ghost") or plr.Character:FindFirstChild("Ghost")
+						if not (ghostVal and ghostVal:IsA("BoolValue") and ghostVal.Value == true) then
+							aliveNow = aliveNow + 1
+						end
 					end
 				end
 			end
 			if aliveNow == 0 then
+				local char = LocalPlayer.Character
+				if char and char:FindFirstChild("HumanoidRootPart") and savedControlCFrame then
+					for _, part in ipairs(char:GetDescendants()) do
+						if part:IsA("BasePart") then part.CanTouch = false end
+					end
+					char.HumanoidRootPart.CFrame = savedControlCFrame
+					task.wait(0.05)
+				end
 				applyControl("STOP")
 			end
 		end
@@ -3055,7 +3081,6 @@ RunService.Heartbeat:Connect(function()
 		end
 	end
 
-	-- CFrame Spoofing Loop
 	local myHRP = getLocalHRP()
 	if myHRP and not flying then
 		local spoofTarget = getSpoofTarget()
@@ -3072,7 +3097,6 @@ RunService.Heartbeat:Connect(function()
 end)
 
 local function restoreRealCFrame()
-	-- Restores real position instantly for local physics and camera before they process
 	if cframeSpoofPending and realUserCFrame and not flying then
 		local hrp = getLocalHRP()
 		if hrp then
