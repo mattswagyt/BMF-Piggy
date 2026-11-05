@@ -251,7 +251,7 @@ UIS.InputBegan:Connect(function(input, gp)
 end)
 
 task.spawn(function()
-	task.wait(2.5) -- Delayed to prevent CoreGui Localization nil error
+	task.wait(2.5)
 	pcall(function()
 		StarterGui:SetCore("SendNotification", {
 			Title = "BMF Menu Loaded!",
@@ -434,15 +434,6 @@ local GAME_MAP_NAMES = {
 	"Outpost", "Plant"
 }
 
-local function isInGameRound()
-	for _, mapName in ipairs(GAME_MAP_NAMES) do
-		if workspace:FindFirstChild(mapName) then
-			return true
-		end
-	end
-	return false
-end
-
 local function getCurrentMapName()
 	for _, mapName in ipairs(GAME_MAP_NAMES) do
 		if workspace:FindFirstChild(mapName) then
@@ -517,13 +508,6 @@ end
 local function updateTracer(target, color, tagKey)
 	if not DrawingAvailable then return end
 	local line = ESP_Tracers[tagKey]
-
-	if not isInGameRound() then
-		if line and line.Visible then
-			line.Visible = false
-		end
-		return
-	end
 
 	if not line then
 		local ok, newLine = pcall(function() return Drawing.new("Line") end)
@@ -1497,7 +1481,7 @@ local function considerItem(obj)
 end
 
 local function scanItems()
-	if not itemESPEnabled or not isInGameRound() then
+	if not itemESPEnabled then
 		return
 	end
 
@@ -1531,7 +1515,7 @@ local function scanItems()
 end
 
 local function scanPiggies()
-	if not piggyESPEnabled or not isInGameRound() then
+	if not piggyESPEnabled then
 		return
 	end
 	local folder = workspace:FindFirstChild("PiggyNPC")
@@ -1560,7 +1544,7 @@ local function scanPiggies()
 end
 
 local function scanEnemies()
-	if not enemyESPEnabled or not isInGameRound() then
+	if not enemyESPEnabled then
 		return
 	end
 
@@ -1589,7 +1573,7 @@ local function scanEnemies()
 end
 
 local function scanAlliesESP()
-	if not allyESPEnabled or not isInGameRound() then
+	if not allyESPEnabled then
 		return
 	end
 
@@ -1717,11 +1701,6 @@ workspace.ChildAdded:Connect(function(child)
 end)
 
 RunService.RenderStepped:Connect(function()
-	if not isInGameRound() then
-		hideAllTracers()
-		return
-	end
-
 	if not (playerESPEnabled or piggyESPEnabled or enemyESPEnabled or allyESPEnabled or itemESPEnabled) then
 		hideAllTracers()
 		return
@@ -1828,7 +1807,6 @@ local trickBotsEnabled = false
 local fakeInvisEndTime = 0
 local cframeSpoofPending = false
 local controlledModel = nil
-local originalBotCFrame = nil
 local savedControlCFrame = nil
 local controlActiveTrack = false
 local controlConstraints = {}
@@ -2192,30 +2170,41 @@ local mrPModel = nil
 local mrPPlantRef = nil
 local mrPLastScan = 0
 
-local function destroyMrPRootTouch(hrp)
-	if not hrp then
-		return
-	end
-	for _, child in ipairs(hrp:GetChildren()) do
-		destroyTouch(child)
-	end
-end
-
 local function neuterMrP(model)
 	if not model or not model.Parent or isControlledRelated(model) then
 		return
 	end
+	
 	local enemy = model:FindFirstChild("Enemy")
 	if enemy and enemy:IsA("BoolValue") then
 		enemy.Value = false
+		if not enemy:GetAttribute("BMF_Hooked") then
+			enemy:SetAttribute("BMF_Hooked", true)
+			enemy.Changed:Connect(function()
+				if mrPNoDamageEnabled and enemy.Value == true then
+					enemy.Value = false
+				end
+			end)
+		end
 	end
+	
 	local projectiles = model:FindFirstChild("Projectiles")
 	if projectiles and projectiles:IsA("Folder") then
 		pcall(function()
-			projectiles:Destroy()
+			for _, child in ipairs(projectiles:GetChildren()) do
+				child:Destroy()
+			end
 		end)
 	end
-	destroyMrPRootTouch(model:FindFirstChild("HumanoidRootPart"))
+	
+	local hrp = model:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		local tt = hrp:FindFirstChild("TouchInterest") or hrp:FindFirstChildWhichIsA("TouchTransmitter")
+		if tt then
+			pcall(function() tt:Destroy() end)
+		end
+		if hrp.CanTouch ~= false then hrp.CanTouch = false end
+	end
 end
 
 local function findMrPModel(plant)
@@ -2238,7 +2227,9 @@ local function findMrPModel(plant)
 end
 
 local function getSpoofTarget()
-	if os.clock() < fakeInvisEndTime then
+	if controlledModel then
+		return CFrame.new(-375, -4, -83)
+	elseif os.clock() < fakeInvisEndTime then
 		return FAKE_INVIS_CF
 	elseif trickBotsEnabled then
 		local currentMap = getCurrentMapName()
@@ -2343,21 +2334,6 @@ local function restoreControlCamera()
 	end
 end
 
-local function restoreControlPlayer(char)
-	if not char then
-		return
-	end
-	for _, part in ipairs(char:GetDescendants()) do
-		if part:IsA("BasePart") then
-			if part.Name ~= "HumanoidRootPart" then
-				part.LocalTransparencyModifier = 0
-			end
-			part.CanTouch = true
-			part.CanQuery = true
-		end
-	end
-end
-
 local function applyControl(val)
 	if val == "STOP" then
 		clearControlConstraints()
@@ -2366,7 +2342,26 @@ local function applyControl(val)
 		end
 		controlledModel = nil
 		restoreControlCamera()
-		restoreControlPlayer(LocalPlayer.Character)
+		local char = LocalPlayer.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			local hrp = char.HumanoidRootPart
+			if savedControlCFrame then
+				hrp.CFrame = savedControlCFrame
+			end
+			hrp.Transparency = 1 
+			hrp.CanTouch = true
+			hrp.CanCollide = true
+			hrp.Anchored = false
+			for _, part in ipairs(char:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanTouch = true
+					part.CanCollide = true
+					if part.Name ~= "HumanoidRootPart" then
+						part.LocalTransparencyModifier = 0
+					end
+				end
+			end
+		end
 		controlActiveTrack = false
 		savedControlCFrame = nil 
 	else
@@ -2475,7 +2470,7 @@ local BOTS_LIST = {
 	"PiggyBot", "MotherBot", "FatherBot", "SheepyBot", "DoggyNPC",
 	"CarverBot", "DessaBot", "RazeBot", "TeacherBot", "ZompiggyBot", "BearyBot",
 	"ClownyBot", "FoxyNPC", "EllyBot", "GrandmotherNPC", "RobbyBot", "Proto", 
-	"TorcherBot", "SoldierNPC", "BadgyBot", "MrP"
+	"TorcherBot", "SoldierNPC", "BadgyBot", "MrP", "MemoryBot"
 }
 
 local function squashBotName(name)
@@ -2504,6 +2499,7 @@ local BOT_ALIAS = {
 	soldiernpc = {"soldiernpc", "soldier", "soldierbot"},
 	badgybot = {"badgybot", "badgy"},
 	mrp = {"mrp", "mrpbot", "misterp", "mrpiggy", "mrpboss"},
+	memorybot = {"memorybot", "memory"}
 }
 
 local function nameMatchesBot(instanceName, listName)
@@ -2791,6 +2787,254 @@ workspace.ChildAdded:Connect(function(child)
 	end
 end)
 
+local BOT_ASSETS = {
+	PiggyBot = {
+		Swing = "rbxassetid://4637010585",
+		Jumpscare = "rbxassetid://9117369876",
+		Ambience = "rbxassetid://1836272467",
+		HitSound = "rbxassetid://175024455"
+	},
+	MotherBot = {
+		Swing = "rbxassetid://4637010585",
+		Parts = {"Flower", "Head"},
+		Ambience = "rbxassetid://1836272467",
+		HitSound = "rbxassetid://175024455",
+		Jumpscare = "rbxassetid://9117369876"
+	},
+	FatherBot = {
+		Swing = "rbxassetid://137510999623117",
+		Stunned = "rbxassetid://4635391378",
+		Annoyed = "rbxassetid://117075665817049",
+		Folders = {"HeadAccessories"},
+		Parts = {"Hat", "Head"},
+		MeshParts = {TorsoFake = "rbxassetid://74205916971494"},
+		Unions = {"PiggyHead"},
+		Ambience = "rbxassetid://1836272467",
+		FootStep = "rbxassetid://2812419402",
+		HitSound = "rbxassetid://175024455",
+		Jumpscare = "rbxassetid://9117369876"
+	},
+	SheepyBot = {
+		Swing = "rbxassetid://4637010585",
+		Unions = {"SheepyHead"},
+		Ambience = "rbxassetid://1836272467",
+		HitSound = "rbxassetid://175024455",
+		Jumpscare = "rbxassetid://9117369876"
+	},
+	TeacherBot = {
+		Swing = "rbxassetid://4637010585",
+		Ambience = "rbxassetid://1844592165",
+		HitSound = "rbxassetid://175024455",
+		Jumpscare = "rbxassetid://1492382312"
+	},
+	ClownyBot = {
+		Swing = "rbxassetid://4838963687",
+		Jumpscare = "rbxassetid://2324298559",
+		Ambience = "rbxassetid://1837432993",
+		HitSound = "rbxassetid://3744368365"
+	},
+	BearyBot = {
+		Swing = "rbxassetid://4777322065",
+		Ambience = "rbxassetid://1848125361",
+		HitSound = "rbxassetid://4471648128",
+		Jumpscare = "rbxassetid://142539082"
+	},
+	EllyBot = {
+		Swing = "rbxassetid://4882076090",
+		Ambience = "rbxassetid://2524259170",
+		HitSound = "rbxassetid://851453784",
+		Jumpscare = "rbxassetid://296702782"
+	},
+	RobbyBot = {
+		Swing = "rbxassetid://4937509635",
+		Ambience = "rbxassetid://1837574885",
+		HitSound = "rbxassetid://4815023971",
+		Jumpscare = "rbxassetid://1708865282" 
+	},
+	TorcherBot = {
+		Swing = "rbxassetid://4970458924",
+		Unions = {"PiggyHead"},
+		Parts = {"Head", {name="HelmetColor", color=Color3.fromRGB(255, 200, 0)}},
+		Ambience = "rbxassetid://1837892414",
+		HitSound = "rbxassetid://346067083",
+		Jumpscare = "rbxassetid://142151940"
+	},
+	BadgyBot = {
+		Swing = "rbxassetid://5082715019",
+		Ambience = "rbxassetid://1845646349",
+		Jumpscare = "rbxassetid://314568939",
+		HitSound = "rbxassetid://141649188"
+	},
+	MrP = {
+		Stunned = "rbxassetid://5032963745",
+		Swing = "rbxassetid://5032911765",
+		Folders = {"Projectiles", "Animations"}, 
+		Jumpscare = "rbxassetid://944163953",
+		Shoot = "rbxassetid://1905343596"
+	},
+	DessaBot = {
+		Swing = "rbxassetid://5731941932",
+		Parts = {"Eye", "Antlers", "Staff"},
+		Unions = {"DessaHead"}
+	},
+	RazeBot = {
+		Swing = "rbxassetid://6083882784",
+		Ambience = "rbxassetid://6080502443",
+		HitSound = "rbxassetid://851453784",
+		Jumpscare = "rbxassetid://9118053542"
+	},
+	MemoryBot = {
+		Swing = "rbxassetid://4631405756",
+		Jumpscare = "rbxassetid://1322209613",
+		Ambience = "rbxassetid://1838649967",
+		HitSound = "rbxassetid://175024455"
+	}
+}
+
+local function configureSpawnedBot(clone, botName)
+	local hrp = clone:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	if not hrp:FindFirstChild("TouchInterest") then
+		local ti = Instance.new("TouchTransmitter")
+		ti.Name = "TouchInterest"
+		ti.Parent = hrp
+	end
+	if not hrp:FindFirstChild("Script") then
+		local s = Instance.new("Script")
+		s.Name = "Script"
+		s.Parent = hrp
+	end
+	if not hrp:FindFirstChild("Root Hip") then
+		local m6 = Instance.new("Motor6D")
+		m6.Name = "Root Hip"
+		m6.Parent = hrp
+	end
+
+	local config = BOT_ASSETS[botName]
+	if config then
+		local function addSound(name, id)
+			if id and not hrp:FindFirstChild(name) then
+				local snd = Instance.new("Sound")
+				snd.Name = name
+				snd.SoundId = id
+				snd.Parent = hrp
+				return snd
+			end
+			return hrp:FindFirstChild(name)
+		end
+		
+		addSound("Ambience", config.Ambience)
+		addSound("HitSound", config.HitSound)
+		addSound("FootStep", config.FootStep or "rbxassetid://2812419402")
+		local jmp = addSound("Jumpscare", config.Jumpscare)
+		
+		if botName == "RobbyBot" and jmp and not jmp:FindFirstChildOfClass("PitchShiftSoundEffect") then
+			local ps = Instance.new("PitchShiftSoundEffect")
+			ps.Priority = 1
+			ps.Octave = 0.5
+			ps.Parent = jmp
+		end
+		
+		if config.Shoot then addSound("Shoot", config.Shoot) end
+
+		local anims = clone:FindFirstChild("Animations")
+		if not anims then
+			anims = Instance.new("Folder")
+			anims.Name = "Animations"
+			anims.Parent = clone
+		end
+		
+		local function addAnim(name, id)
+			if id and not anims:FindFirstChild(name) then
+				local a = Instance.new("Animation")
+				a.Name = name
+				a.AnimationId = id
+				a.Parent = anims
+			end
+		end
+		
+		addAnim("Swing", config.Swing)
+		addAnim("Stunned", config.Stunned or "rbxassetid://4635391378")
+		addAnim("Annoyed", config.Annoyed)
+
+		if botName == "MrP" then
+			addAnim("Walk", "rbxassetid://5023714016")
+			addAnim("Idle", "rbxassetid://5023724575")
+			addAnim("ShootAnim", "rbxassetid://5023752994")
+		end
+		
+		if config.Parts then
+			for _, p in ipairs(config.Parts) do
+				local pName = type(p) == "table" and p.name or p
+				if not clone:FindFirstChild(pName) then
+					local part = Instance.new("Part")
+					part.Name = pName
+					if type(p) == "table" and p.color then
+						part.Color = p.color
+					end
+					part.Parent = clone
+				end
+			end
+		end
+		if config.Folders then
+			for _, f in ipairs(config.Folders) do
+				if not clone:FindFirstChild(f) then
+					local fold = Instance.new("Folder")
+					fold.Name = f
+					fold.Parent = clone
+				end
+			end
+		end
+		if config.Unions then
+			for _, u in ipairs(config.Unions) do
+				if not clone:FindFirstChild(u) then
+					local un = Instance.new("UnionOperation")
+					un.Name = u
+					un.Parent = clone
+				end
+			end
+		end
+		if config.MeshParts then
+			for mName, id in pairs(config.MeshParts) do
+				if not clone:FindFirstChild(mName) then
+					local mp = Instance.new("MeshPart")
+					mp.Name = mName
+					mp.MeshId = id
+					mp.Parent = clone
+				end
+			end
+		end
+	end
+
+	if botName ~= "MrP" then
+		local rs = game:GetService("ReplicatedStorage")
+		if not clone:FindFirstChild("Animate") then
+			local aTemplate = rs:FindFirstChild("Animate", true)
+			if aTemplate then aTemplate:Clone().Parent = clone end
+		end
+		
+		local gameFolder = workspace:FindFirstChild("GameFolder")
+		local piggyNPCFolder = workspace:FindFirstChild("PiggyNPC")
+		local botCount = 0
+		if piggyNPCFolder then
+			for _, b in ipairs(piggyNPCFolder:GetChildren()) do
+				if b:IsA("Model") and not string.lower(b.Name):find("trap") then
+					botCount = botCount + 1
+				end
+			end
+		end
+		
+		if botCount >= 2 then
+			local sws = rs:FindFirstChild("SwarmBotMainScript", true)
+			if sws and not clone:FindFirstChild("SwarmBotMainScript") then sws:Clone().Parent = clone end
+		else
+			local bs = rs:FindFirstChild("BotMainScript", true)
+			if bs and not clone:FindFirstChild("BotMainScript") then bs:Clone().Parent = clone end
+		end
+	end
+end
+
 createDropdown(ExploitsScroll, "Spawn Bot (Troll, WIP)", function()
 	local opts = {}
 	for _, name in ipairs(BOTS_LIST) do
@@ -2798,7 +3042,6 @@ createDropdown(ExploitsScroll, "Spawn Bot (Troll, WIP)", function()
 	end
 	return opts
 end, function(val)
-	local rs = game:GetService("ReplicatedStorage")
 	local botModel = findBotTemplate(val)
 	
 	if botModel then
@@ -2825,10 +3068,6 @@ end, function(val)
 			end
 		end
 		
-		if not clone:FindFirstChild("BotMainScript") and not clone:FindFirstChild("SwarmBotMainScript") then
-			local scriptToClone = rs:FindFirstChild("BotMainScript", true) or rs:FindFirstChild("SwarmBotMainScript", true)
-			if scriptToClone then scriptToClone:Clone().Parent = clone end
-		end
 		if not clone:FindFirstChild("MaxSpeed") then
 			local ms = Instance.new("IntValue")
 			ms.Name = "MaxSpeed"
@@ -2862,33 +3101,7 @@ end, function(val)
 		
 		local botHrp = clone:FindFirstChild("HumanoidRootPart")
 		if botHrp then
-			-- Copy missing essentials from active bots to properly configure audio and animations
-			local templateBot = nil
-			if piggyFolder then
-				for _, b in ipairs(piggyFolder:GetChildren()) do
-					if b:IsA("Model") and b:FindFirstChild("HumanoidRootPart") then
-						templateBot = b
-						break
-					end
-				end
-			end
-			if templateBot then
-				local tempHRP = templateBot:FindFirstChild("HumanoidRootPart")
-				if tempHRP then
-					for _, sound in ipairs(tempHRP:GetChildren()) do
-						if sound:IsA("Sound") and not botHrp:FindFirstChild(sound.Name) then
-							sound:Clone().Parent = botHrp
-						end
-					end
-				end
-				local animate = templateBot:FindFirstChild("Animate") or templateBot:FindFirstChild("Animations")
-				if animate and not clone:FindFirstChild(animate.Name) then
-					animate:Clone().Parent = clone
-				end
-			end
-
 			clone:SetPrimaryPartCFrame(spawnPos)
-			botHrp.Touched:Connect(function() end)
 			
 			local myChar = LocalPlayer.Character
 			if myChar then
@@ -2905,7 +3118,12 @@ end, function(val)
 			clone:MoveTo(spawnPos.Position)
 		end
 		
+		configureSpawnedBot(clone, listKeyForModel(clone) or val)
 		clone.Parent = spawnFolder
+		
+		if botHrp then
+			botHrp.Touched:Connect(function() end)
+		end
 		
 		task.spawn(function()
 			local botHum = clone:FindFirstChildOfClass("Humanoid")
@@ -2973,6 +3191,14 @@ RunService.Heartbeat:Connect(function()
 				neuterMrP(mrPModel)
 			end
 		end
+		
+		for _, desc in ipairs(workspace:GetDescendants()) do
+			if desc.Name == "HomingProjectile" and desc:IsA("BasePart") then
+				if desc.CanTouch ~= false then
+					desc.CanTouch = false
+				end
+			end
+		end
 	end
 
 	if controlledModel and controlledModel.Parent then
@@ -3006,12 +3232,14 @@ RunService.Heartbeat:Connect(function()
 				end
 				for _, part in ipairs(myChar:GetDescendants()) do
 					if part:IsA("BasePart") then
-						if part.Name ~= "HumanoidRootPart" then
+						if part.Name == "HumanoidRootPart" then
+							if part.Transparency ~= 1 then part.Transparency = 1 end
+						else
 							part.LocalTransparencyModifier = 1
 						end
 						
-						-- Enforce CanTouch continuous override to fully prevent mid-control jumpscares
 						if part.CanTouch ~= false then part.CanTouch = false end
+						if part.CanCollide ~= false then part.CanCollide = false end
 						if part.CanQuery ~= false then part.CanQuery = false end
 					end
 				end
@@ -3063,22 +3291,6 @@ RunService.Heartbeat:Connect(function()
 		if controlledModel and not controlledModel.Parent then
 			applyControl("STOP")
 		end
-		local myChar = LocalPlayer.Character
-		if myChar then
-			for _, part in ipairs(myChar:GetDescendants()) do
-				if part:IsA("BasePart") then
-					if part.Name ~= "HumanoidRootPart" and part.LocalTransparencyModifier == 1 then
-						part.LocalTransparencyModifier = 0
-					end
-					if part.CanTouch == false then
-						part.CanTouch = true
-					end
-					if part.CanQuery == false then
-						part.CanQuery = true
-					end
-				end
-			end
-		end
 	end
 
 	local myHRP = getLocalHRP()
@@ -3087,6 +3299,9 @@ RunService.Heartbeat:Connect(function()
 		if spoofTarget then
 			realUserCFrame = myHRP.CFrame
 			myHRP.CFrame = spoofTarget
+			if controlledModel then
+				myHRP.Anchored = true 
+			end
 			cframeSpoofPending = true
 		else
 			if cframeSpoofPending then
@@ -3101,6 +3316,9 @@ local function restoreRealCFrame()
 		local hrp = getLocalHRP()
 		if hrp then
 			hrp.CFrame = realUserCFrame
+			if controlledModel then
+				hrp.Anchored = false 
+			end
 		end
 	end
 end
